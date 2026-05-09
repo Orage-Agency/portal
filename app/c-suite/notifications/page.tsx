@@ -8,11 +8,10 @@ import { Button } from "@/components/ui/button"
 import {
   getNotifications,
   markNotificationRead,
-
-// Skip static generation - requires client-side auth and database access
-export const dynamic = "force-dynamic"
   deleteNotification as deleteNotificationFromStorage,
 } from "@/lib/storage"
+
+export const dynamic = "force-dynamic"
 
 interface Notification {
   id: string

@@ -10,6 +10,7 @@ import { getNotifications } from "@/lib/storage"
 export const dynamic = "force-dynamic"
 
 export default function AdminDashboard() {
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
 
