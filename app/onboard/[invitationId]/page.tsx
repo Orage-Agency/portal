@@ -5,7 +5,7 @@ import { Download } from "lucide-react"
 import { generateAndDownloadPDF } from "@/lib/pdf"
 import { use, useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import type { ClientInvitation, OnboardingData } from "@/lib/types"
+import { type ClientInvitation, type OnboardingData, OFFER_DEFAULTS } from "@/lib/types"
 import MSATemplate from "@/components/c-suite/templates/MSATemplate"
 import InvoiceTemplate from "@/components/c-suite/templates/InvoiceTemplate"
 import WelcomeTemplate from "@/components/c-suite/templates/WelcomeTemplate"
@@ -472,13 +472,13 @@ Login Credentials:
                     <span className="text-gold">Business:</span> {invitation.business_name}
                   </p>
                   <p className="text-white break-words">
-                    <span className="text-gold">Plan:</span> {invitation.offer_type}
+                    <span className="text-gold">Plan:</span> {OFFER_DEFAULTS[invitation.offer_type]?.displayName || invitation.offer_type}
                   </p>
                   <p className="text-white break-words">
-                    <span className="text-gold">Setup Fee:</span> ${invitation.setup_fee}
+                    <span className="text-gold">90-Day Onboarding Fee:</span> ${invitation.setup_fee.toLocaleString()}
                   </p>
                   <p className="text-white break-words">
-                    <span className="text-gold">Monthly Fee:</span> ${invitation.monthly_fee}
+                    <span className="text-gold">Monthly Fee:</span> ${invitation.monthly_fee.toLocaleString()}/mo
                   </p>
                 </div>
               </div>

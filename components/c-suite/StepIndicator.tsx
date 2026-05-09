@@ -4,13 +4,12 @@ interface StepIndicatorProps {
 }
 
 const stepLabels = [
-  'Offer & Info',
-  'Payment',
+  'Offer',
   'Client Details',
-  'Pricing',
+  'Referral',
   'Customizations',
   'Signature',
-  'Documents'
+  'Documents',
 ];
 
 export default function StepIndicator({ currentStep, totalSteps }: StepIndicatorProps) {
@@ -20,16 +19,16 @@ export default function StepIndicator({ currentStep, totalSteps }: StepIndicator
         {/* Progress bar background */}
         <div className="absolute top-5 left-0 right-0 h-0.5 bg-white/10 -z-10" />
         {/* Progress bar fill */}
-        <div 
+        <div
           className="absolute top-5 left-0 h-0.5 bg-[#B68039] -z-10 transition-all duration-500"
           style={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
         />
-        
+
         {Array.from({ length: totalSteps }).map((_, index) => {
           const stepNumber = index + 1;
           const isActive = stepNumber === currentStep;
           const isCompleted = stepNumber < currentStep;
-          
+
           return (
             <div key={stepNumber} className="flex flex-col items-center">
               <div

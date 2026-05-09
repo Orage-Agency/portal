@@ -2,17 +2,14 @@
 
 import { OnboardingData, OfferType, OFFER_DEFAULTS } from '@/lib/types';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-
-const offerTypes: OfferType[] = ['Premier', 'Startup', 'Executive', 'Focus', 'Agency', 'CourseOnly'];
 
 interface Step1Props {
   formData: OnboardingData;
   updateFormData: (updates: Partial<OnboardingData>) => void;
 }
 
-const featuredOffers: OfferType[] = ['Premier', 'Startup'];
-const otherOffers: OfferType[] = ['Executive', 'Focus', 'Agency'];
+const TIERS: OfferType[] = ['Toolkit', 'Orage90', 'AIEnabled'];
+const FEATURED_TIER: OfferType = 'Orage90';
 
 export default function Step1OfferInfo({ formData, updateFormData }: Step1Props) {
   const handleOfferSelect = (offer: OfferType) => {
@@ -28,84 +25,59 @@ export default function Step1OfferInfo({ formData, updateFormData }: Step1Props)
     <div className="space-y-8">
       <div>
         <h2 className="font-heading text-4xl text-gold mb-2">STEP 1: OFFER SELECTION</h2>
-        <p className="text-white/60 font-body">Select the offer type for this client</p>
+        <p className="text-white/60 font-body">Select the tier for this client</p>
       </div>
 
-      {/* NOVA Offers - Premier and Startup */}
       <div className="space-y-4">
-        <Label className="text-white font-body text-sm uppercase tracking-wider text-center">NOVA Offers</Label>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-          {featuredOffers.map((offer) => {
+        <Label className="text-white font-body text-sm uppercase tracking-wider">Tiers</Label>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {TIERS.map((offer) => {
             const defaults = OFFER_DEFAULTS[offer];
             const isSelected = formData.offer_type === offer;
-            
+            const isFeatured = offer === FEATURED_TIER;
+
             return (
               <button
                 key={offer}
                 onClick={() => handleOfferSelect(offer)}
-                className={`p-8 rounded-xl border-2 transition-all text-left w-full ${
+                className={`relative p-6 md:p-8 rounded-xl border-2 transition-all text-left w-full flex flex-col ${
                   isSelected
                     ? 'border-gold bg-gold/10 shadow-2xl'
-                    : 'border-gold/50 bg-white/5 hover:border-gold/80 hover:bg-gold/5'
-                }`}
-              >
-                <h3 className={`font-heading text-3xl mb-3 ${isSelected ? 'text-gold' : 'text-white'}`}>
-                  {offer}
-                </h3>
-                <p className="text-white/70 text-sm font-body mb-4 leading-relaxed">{defaults.description}</p>
-                <div className="flex gap-4 text-sm font-body">
-                  <span className="text-gold font-bold">
-                    {defaults.setup > 0 ? `Setup: $${defaults.setup.toLocaleString()}` : 'No Setup Fee'}
-                  </span>
-                  <span className="text-white/50">•</span>
-                  <span className="text-gold font-bold">
-                    {defaults.monthly > 0 ? `Monthly: $${defaults.monthly.toLocaleString()}` : 'No Monthly Fee'}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Other Offers */}
-      <div className="space-y-4">
-        <Label className="text-white font-body text-sm uppercase tracking-wider">Other Offers</Label>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {otherOffers.map((offer) => {
-            const defaults = OFFER_DEFAULTS[offer];
-            const isSelected = formData.offer_type === offer;
-            
-            return (
-              <button
-                key={offer}
-                onClick={() => handleOfferSelect(offer)}
-                className={`p-6 rounded-lg border-2 transition-all text-left ${
-                  isSelected
-                    ? 'border-[#B68039] bg-[#B68039]/10'
+                    : isFeatured
+                    ? 'border-gold/50 bg-white/5 hover:border-gold/80 hover:bg-gold/5'
                     : 'border-white/10 bg-white/5 hover:border-white/30'
                 }`}
               >
-                <h3 className={`font-heading text-2xl mb-2 ${isSelected ? 'text-[#B68039]' : 'text-white'}`}>
-                  {offer}
-                </h3>
-                <p className="text-white/70 text-sm font-body mb-3">{defaults.description}</p>
-                <div className="flex gap-4 text-sm font-body">
-                  <span className="text-[#B68039]">
-                    {defaults.setup > 0 ? `Setup: $${defaults.setup.toLocaleString()}` : 'No Setup Fee'}
+                {isFeatured && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gold text-black text-xs font-heading tracking-wider px-3 py-1 rounded-full">
+                    FEATURED
                   </span>
-                  <span className="text-white/50">•</span>
-                  <span className="text-[#B68039]">
-                    {defaults.monthly > 0 ? `Monthly: $${defaults.monthly.toLocaleString()}` : 'No Monthly Fee'}
-                  </span>
+                )}
+
+                <div className="mb-4">
+                  <h3 className={`font-heading text-2xl md:text-3xl mb-1 ${isSelected ? 'text-gold' : 'text-white'}`}>
+                    {defaults.displayName}
+                  </h3>
+                  <p className="text-gold/80 text-xs font-body uppercase tracking-wider">{defaults.tagline}</p>
+                </div>
+
+                <p className="text-white/70 text-sm font-body mb-6 leading-relaxed flex-1">{defaults.description}</p>
+
+                <div className="space-y-1 font-body border-t border-white/10 pt-4">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-white/60 text-xs uppercase tracking-wider">90-Day Setup</span>
+                    <span className="text-gold font-bold text-lg">${defaults.setup.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-white/60 text-xs uppercase tracking-wider">Monthly</span>
+                    <span className="text-gold font-bold text-lg">${defaults.monthly.toLocaleString()}/mo</span>
+                  </div>
                 </div>
               </button>
             );
           })}
         </div>
       </div>
-
-
     </div>
   );
 }

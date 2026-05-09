@@ -21,9 +21,9 @@ export default function InvitationsPage() {
   const [contactName, setContactName] = useState("")
   const [isReferral, setIsReferral] = useState<"yes" | "no">("no")
   const [referralName, setReferralName] = useState("")
-  const [offerType, setOfferType] = useState<OfferType>("Executive")
-  const [setupFee, setSetupFee] = useState(5000)
-  const [monthlyFee, setMonthlyFee] = useState(197)
+  const [offerType, setOfferType] = useState<OfferType>("Orage90")
+  const [setupFee, setSetupFee] = useState(7500)
+  const [monthlyFee, setMonthlyFee] = useState(2500)
   const [customServices, setCustomServices] = useState("")
   const [specialNotes, setSpecialNotes] = useState("")
   const [invitations, setInvitations] = useState<Invitation[]>([])
@@ -328,9 +328,9 @@ ${link}`
                   onChange={(e) => handleOfferChange(e.target.value as OfferType)}
                   className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold/50"
                 >
-                  {Object.keys(OFFER_DEFAULTS).map((offer) => (
+                  {(Object.keys(OFFER_DEFAULTS) as OfferType[]).map((offer) => (
                     <option key={offer} value={offer} className="bg-black">
-                      {offer}
+                      {OFFER_DEFAULTS[offer].displayName} — ${OFFER_DEFAULTS[offer].setup.toLocaleString()} / ${OFFER_DEFAULTS[offer].monthly.toLocaleString()}/mo
                     </option>
                   ))}
                 </select>
@@ -341,22 +341,24 @@ ${link}`
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-white font-body mb-2 text-sm md:text-base">Setup Fee</label>
+                  <label className="block text-white font-body mb-2 text-sm md:text-base">90-Day Onboarding Fee</label>
                   <input
                     type="number"
                     value={setupFee}
                     onChange={(e) => setSetupFee(Number(e.target.value))}
                     className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold/50"
                   />
+                  <p className="text-white/40 text-xs mt-1">Override the default if needed</p>
                 </div>
                 <div>
-                  <label className="block text-white font-body mb-2 text-sm md:text-base">Monthly Fee</label>
+                  <label className="block text-white font-body mb-2 text-sm md:text-base">Monthly Recurring</label>
                   <input
                     type="number"
                     value={monthlyFee}
                     onChange={(e) => setMonthlyFee(Number(e.target.value))}
                     className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold/50"
                   />
+                  <p className="text-white/40 text-xs mt-1">Override the default if needed</p>
                 </div>
               </div>
 
@@ -426,9 +428,9 @@ ${link}`
                 <h3 className="font-heading text-2xl text-gold mb-4">Contract Summary</h3>
                 <div className="space-y-3 text-white font-body text-sm md:text-base">
                   <p><span className="text-gold font-bold">Business:</span> {businessName}</p>
-                  <p><span className="text-gold font-bold">Offer Type:</span> {offerType}</p>
-                  <p><span className="text-gold font-bold">Setup Fee:</span> ${setupFee.toLocaleString()}</p>
-                  <p><span className="text-gold font-bold">Monthly Fee:</span> ${monthlyFee.toLocaleString()}</p>
+                  <p><span className="text-gold font-bold">Offer:</span> {OFFER_DEFAULTS[offerType].displayName}</p>
+                  <p><span className="text-gold font-bold">90-Day Onboarding Fee:</span> ${setupFee.toLocaleString()}</p>
+                  <p><span className="text-gold font-bold">Monthly Recurring:</span> ${monthlyFee.toLocaleString()}/mo</p>
                   {customServices && (
                     <p><span className="text-gold font-bold">Custom Services:</span> {customServices}</p>
                   )}
@@ -750,7 +752,7 @@ ${generatedLink}`}
                         <div className="flex-1 min-w-0">
                           <h4 className="font-heading text-lg md:text-xl text-white break-words">{inv.business_name}</h4>
                           <p className="text-white/60 text-sm md:text-base break-words">
-                            {inv.offer_type} - ${inv.setup_fee} setup, ${inv.monthly_fee}/mo
+                            {OFFER_DEFAULTS[inv.offer_type as OfferType]?.displayName || inv.offer_type} — ${inv.setup_fee.toLocaleString()} (90-day) + ${inv.monthly_fee.toLocaleString()}/mo
                           </p>
                           <p className="text-white/40 text-xs md:text-sm mt-1 break-all">ID: {inv.id}</p>
                         </div>

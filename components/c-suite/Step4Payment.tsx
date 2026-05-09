@@ -14,7 +14,7 @@ export default function Step3Payment({ formData, updateFormData }: Step3Props) {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="font-heading text-4xl text-gold mb-2">STEP 4: REFERRAL</h2>
+        <h2 className="font-heading text-4xl text-gold mb-2">STEP 3: REFERRAL</h2>
         <p className="text-white/60 font-body">Referral information</p>
       </div>
 

@@ -13,7 +13,7 @@ export default function Step2ClientDetails({ formData, updateFormData }: Step2Pr
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="font-heading text-4xl text-gold mb-2">STEP 3: CLIENT DETAILS</h2>
+        <h2 className="font-heading text-4xl text-gold mb-2">STEP 2: CLIENT DETAILS</h2>
         <p className="text-white/60 font-body">Contact information and address</p>
       </div>
 

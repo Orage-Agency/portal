@@ -1,11 +1,80 @@
 import type { OnboardingData } from "@/lib/types"
+import { OFFER_DEFAULTS } from "@/lib/types"
 
 export default function WelcomeTemplate(data: OnboardingData): string {
+  const offerDisplayName = OFFER_DEFAULTS[data.offer_type]?.displayName || data.offer_type
+
+  const getPackageDetails = () => {
+    switch (data.offer_type) {
+      case "Toolkit":
+        return `You've selected the Toolkit package, which includes:
+• "AI for Business" platform & course (full curriculum access)
+• Free CRM (Customer Relationship Management system)
+• Library of AI tools, templates, and workflow walkthroughs
+• Community access for peer learning
+• 24/7 access to AI tools for learning and experimentation
+
+IMPORTANT: This package is self-serve. Custom one-on-one onboarding is NOT included — you learn and implement at your own pace. $${data.monthly_fee.toLocaleString()}/month after the 90-day onboarding window. You can upgrade to Orage 90 or AI-Enabled Companies at any time.
+`
+
+      case "Orage90":
+        return `You've selected Orage 90 — our Done-For-You 90-day implementation, which includes:
+• Free CRM (Customer Relationship Management system)
+• Custom AI voice/phone agent setup
+• Email/SMS AI agent implementation
+• Custom 90-day onboarding tailored to your business
+• "AI for Business" platform/course access
+• Integration with your existing systems and workflows
+• Ongoing optimization during the 90-day window
+
+After the 90-day onboarding phase completes, services continue month-to-month at $${data.monthly_fee.toLocaleString()}/month.
+`
+
+      case "AIEnabled":
+        return `You've selected AI-Enabled Companies — our custom enterprise engagement, which includes:
+• Everything in Orage 90 PLUS:
+• Dedicated implementation team and account leadership
+• Multiple AI agents (voice, SMS, email, chat) tuned to your workflows
+• Custom tool development based on your specific operations
+• 1-on-1 strategic consulting with agency leadership
+• White-glove ongoing optimization and performance monitoring
+• Priority access to new tools, features, and capabilities
+• Quarterly executive business reviews
+
+90-day implementation phase followed by ongoing strategic partnership at $${data.monthly_fee.toLocaleString()}/month.
+`
+
+      default:
+        return ""
+    }
+  }
+
+  const getNextSteps = () => {
+    if (data.offer_type === "Toolkit") {
+      return `3. Get Started Learning
+   Access your course materials immediately through your portal. Begin with the introduction modules to get familiar with AI fundamentals and our platform.
+
+4. Explore Your Tools
+   Your free CRM and AI tools are ready to use. Follow the tutorials to start experimenting and learning how to leverage AI for your business.`
+    }
+
+    return `3. Initial Consultation
+   We'll be reaching out within a week to schedule your kickoff call where we'll discuss:
+   - Business goals and AI implementation strategy
+   - 90-day timeline and milestones
+   - Custom onboarding process
+   - Agent setup and configuration
+   - Any questions you may have
+
+4. Let's Build
+   Once we've aligned on the strategy, we'll begin implementing your AI agents and tools to transform your business operations.`
+  }
+
   return `WELCOME TO ORAGE AI AGENCY
 
 Hey ${data.contact_name},
 
-Thank you for choosing to work with us at Orage AI Agency! We're thrilled to have the opportunity to help ${data.business_name} scale efficiently and improve operations with our custom AI services, tools, and agents.
+Thank you for choosing to work with us at Orage AI Agency! We're thrilled to have the opportunity to help ${data.business_name} scale efficiently and become an AI-enabled company.
 
 Below, you'll find everything you need to get started smoothly:
 
@@ -18,7 +87,7 @@ Welcome to your personalized Client Portal! This is your dedicated space to stay
 Portal Access:
 ${
   data.client_id
-    ? `• Portal Login URL: ${data.portal_login_url || window.location.origin + "/portal/login"}
+    ? `• Portal Login URL: ${data.portal_login_url || "https://portal.orage.agency/portal/login"}
 • Client ID: ${data.client_id}
 • Email: ${data.client_email}`
     : `• Portal URL: ${data.portal_url || "Your portal URL will be provided"}
@@ -27,105 +96,14 @@ ${
 
 Inside your portal, you'll find:
 
-- Documents (Agreements & Invoices)  
+- Documents (Agreements & Invoices)
 All your important paperwork in one place. Easily review signed agreements and manage invoices without hunting through emails.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-YOUR PACKAGE: ${data.offer_type.replace("CourseOnly", "COURSE ONLY")}
+YOUR PACKAGE: ${offerDisplayName.toUpperCase()}
 
-${
-  data.offer_type === "Executive"
-    ? `You've selected our premium Executive Package, which includes:
-• Free CRM (Customer Relationship Management system)
-• AI voice/phone agent - fully customized to your business
-• Email/SMS AI agent - automated communication handling
-• Custom onboarding tailored specifically to your business needs
-• "AI for Business" platform/course - full access to all training materials
-• 24/7 access to all AI tools
-`
-    : ""
-}${
-  data.offer_type === "Premier"
-    ? `You've selected our Premier Package (24-hour same day act now offer!), which includes:
-• Free CRM (Customer Relationship Management system)
-• AI voice/phone agent - customized for your operations
-• Email/SMS AI agent - automated communication workflows
-• Custom onboarding designed for your business
-• "AI for Business" platform/course - complete course access
-• 24/7 access to AI tools
-`
-    : ""
-}${
-  data.offer_type === "Startup"
-    ? `You've selected our Startup Package (Financing Plan), which includes:
-• Free CRM (Customer Relationship Management system)
-• AI voice/phone agent implementation
-• Email/SMS AI agent setup
-• Custom onboarding for your business
-• "AI for Business" platform/course access
-• 24/7 access to AI tools
-
-IMPORTANT: This is a ONE YEAR CONTRACT at $597/month with NO CANCELLATION option. You're committed to 12 monthly payments.
-`
-    : ""
-}${
-  data.offer_type === "CourseOnly"
-    ? `You've selected our Course Only Package, which includes:
-• "AI for Business" online course/hub - comprehensive AI training
-• Free CRM (Customer Relationship Management system)
-• AI tools, education, videos, tutorials, templates, and walk-throughs
-• Skills development to implement AI in your business
-• 24/7 access to AI tools for learning and experimentation
-• Benefits and rewards for completing course tasks
-• Potential discounts and money-back offers based on tool usage
-• Community access for peer learning
-
-IMPORTANT: This package does NOT include custom onboarding (you learn at your own pace). $197/month with NO contract or commitment - cancel anytime. Please note that if you cancel, you will lose access to the CRM and tools.
-
-Perfect for small businesses, entrepreneurs, and solopreneurs who want AI education at a lower entry point. You can upgrade to full implementation services at any time!
-`
-    : ""
-}${
-  data.offer_type === "FreeTrial"
-    ? `You've been selected for our Free/Trial/Focus Group Program, which includes:
-• AI voice/phone agent - implementation and testing
-• Email/SMS AI agent - setup and configuration
-• Custom onboarding (timeline subject to AI readiness audit)
-• Access to beta features and new tools
-• Opportunity to provide feedback that shapes our services
-
-IMPORTANT: This is a NO-COST program for testing and feedback purposes. While you will NOT be charged for Orage AI Agency services, you ARE responsible for any third-party platform usage costs (ElevenLabs, SMS credits, etc.) which are billed directly by those providers. Implementation timeline is subject to your business's AI readiness assessment.
-`
-    : ""
-}${
-  data.offer_type === "Focus"
-    ? `You've selected our Focus Group Program, which includes:
-• AI voice/phone agent - implementation and testing
-• Email/SMS AI agent - setup and configuration
-• Custom onboarding (timeline subject to AI readiness audit)
-• Access to beta features and new tools
-• Opportunity to provide feedback that shapes our services
-
-IMPORTANT: This is a NO-COST program for testing and feedback purposes. While you will NOT be charged for Orage AI Agency services, you ARE responsible for any third-party platform usage costs (ElevenLabs, SMS credits, etc.) which are billed directly by those providers. Implementation timeline is subject to your business's AI readiness assessment.
-`
-    : ""
-}${
-  data.offer_type === "Agency"
-    ? `You've selected our exclusive AGENCY Package - our highest tier of service, which includes:
-• Everything in the Executive Package PLUS:
-• True one-on-one consultation with our team
-• Dedicated strategy calls and personalized advising
-• Step-by-step consulting throughout implementation
-• Priority access to new tools and features before anyone else
-• Ongoing optimization and performance monitoring
-• Custom tool creation based on your specific business needs
-• White-glove service with highest priority support
-
-IMPORTANT: $15,000 NON-REFUNDABLE setup fee + $5,000/month. This is our premium tier with the highest level of access, customization, and personal attention.
-`
-    : ""
-}
+${getPackageDetails()}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 WHAT HAPPENS NEXT?
@@ -136,41 +114,13 @@ WHAT HAPPENS NEXT?
 2. Portal Access
    Log into your client portal using the credentials above. Bookmark it for easy access!
 
-${
-  data.offer_type !== "CourseOnly" && data.offer_type !== "Focus"
-    ? `3. Initial Consultation
-   We'll be reaching out within a week to schedule your kickoff call where we'll discuss:
-   - Business goals and AI implementation strategy
-   - Timeline and milestones
-   - Custom onboarding process
-   - Agent setup and configuration
-   - Any questions you may have
-
-4. Let's Automate!
-   Once we've aligned on the strategy, we'll begin implementing your AI agents and tools to transform your business operations.`
-    : data.offer_type === "CourseOnly"
-      ? `3. Get Started Learning
-   Access your course materials immediately through your portal. Begin with the introduction modules to get familiar with AI fundamentals and our platform.
-
-4. Explore Your Tools
-   Your free CRM and AI tools are ready to use. Follow the tutorials to start experimenting and learning how to leverage AI for your business.`
-      : `3. Initial Consultation
-   We'll be reaching out within a week to schedule your kickoff call where we'll discuss:
-   - Business goals and AI implementation strategy
-   - Timeline and milestones
-   - Custom onboarding process
-   - Agent setup and configuration
-   - Any questions you may have
-
-4. Let's Automate!
-   Once we've aligned on the strategy, we'll begin implementing your AI agents and tools to transform your business operations.`
-}
+${getNextSteps()}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 CONTACT US
 
-The Client Portal is designed to make your experience with us as seamless and transparent as possible. We're excited to have you here and look forward to helping you scale efficiently with AI!
+The Client Portal is designed to make your experience with us as seamless and transparent as possible. We're excited to have you here and look forward to helping you scale efficiently with AI.
 
 If you have any immediate questions or concerns, don't hesitate to reach out:
 
@@ -192,5 +142,5 @@ Please be aware that certain AI services (voice/phone agents, SMS agents, etc.) 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-P.S. Don't forget to save your portal credentials in a secure location. You'll be using them frequently to access your AI tools and track your implementation progress!`
+P.S. Don't forget to save your portal credentials in a secure location. You'll be using them frequently to access your AI tools and track your implementation progress.`
 }

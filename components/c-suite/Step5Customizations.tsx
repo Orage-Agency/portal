@@ -87,7 +87,7 @@ export default function Step5Customizations({ formData, updateFormData }: Step5P
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="font-heading text-4xl text-gold mb-2">STEP 5: CUSTOMIZATIONS</h2>
+        <h2 className="font-heading text-4xl text-gold mb-2">STEP 4: CUSTOMIZATIONS</h2>
         <p className="text-white/60 font-body">Optional notes and custom service details</p>
       </div>
 

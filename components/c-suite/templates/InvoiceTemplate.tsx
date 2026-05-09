@@ -1,15 +1,17 @@
 import type { OnboardingData } from "@/lib/types"
+import { OFFER_DEFAULTS } from "@/lib/types"
 
 export default function InvoiceTemplate(data: OnboardingData): string {
   const today = new Date()
   const invoiceDate = today.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
   const invoiceNumber = `#${data.business_name.substring(0, 3).toUpperCase()}-${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`
 
-  const nextMonth = new Date(today)
-  nextMonth.setMonth(nextMonth.getMonth() + 1)
-  const billingPeriodEnd = nextMonth.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" })
+  const day91 = new Date(today)
+  day91.setDate(day91.getDate() + 90)
+  const monthlyStart = day91.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" })
   const billingPeriodStart = today.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" })
 
+  const offerDisplayName = OFFER_DEFAULTS[data.offer_type]?.displayName || data.offer_type
   const subtotal = data.setup_fee
 
   return `INVOICE ${invoiceNumber}
@@ -24,7 +26,7 @@ team@orage.agency
 (405) 967-9085
 
 DATE OF ISSUE: ${invoiceDate}
-BILLING PERIOD: ${billingPeriodStart} - ${billingPeriodEnd}
+BILLING PERIOD: ${billingPeriodStart} - ${monthlyStart} (90-day onboarding phase)
 DUE: On Receipt
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -41,18 +43,13 @@ ${data.client_phone}
 
 SERVICES / PRODUCTS
 
-${data.offer_type.toUpperCase()} PACKAGE
+${offerDisplayName.toUpperCase()} PACKAGE
 
-${
-  data.setup_fee > 0
-    ? `Setup Fee                                    $${data.setup_fee.toLocaleString()}`
-    : "No Setup Fee"
-}
+90-Day Onboarding Fee                         $${data.setup_fee.toLocaleString()}
 
-${data.offer_type === "Startup" ? `Monthly Recurring: $${data.monthly_fee.toLocaleString()}/month begins immediately upon signing` : `NOTE: Monthly recurring fee of $${data.monthly_fee.toLocaleString()}/month begins 1 month from onboarding date.`}
+NOTE: Monthly recurring fee of $${data.monthly_fee.toLocaleString()}/month begins on day 91 (${monthlyStart}).
 
 ${data.custom_services ? `\nADDITIONAL SERVICES:\n${data.custom_services}\n` : ""}
-
                                         ─────────────
                                     SUB TOTAL:  $${subtotal.toLocaleString()}
                                         TOTAL:  $${subtotal.toLocaleString()}
@@ -74,7 +71,7 @@ Account Holder: Orage AI Agency
 
 ONLINE PAYMENT
 Stripe Invoice Link: [TO BE SENT SEPARATELY]
-Client Portal: ${data.portal_url}
+Client Portal: ${data.portal_url || "https://portal.orage.agency"}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -100,7 +97,7 @@ These fees are billed directly by the respective service providers, NOT by Orage
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 For questions regarding this invoice, please contact:
-Email: team@orage.agency  
+Email: team@orage.agency
 Phone: (405) 967-9085
 
 Thank you for choosing Orage AI Agency!

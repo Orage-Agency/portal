@@ -4,23 +4,22 @@ import { useState, useEffect } from "react"
 import type { OnboardingData } from "@/lib/types"
 import StepIndicator from "./StepIndicator"
 import Step1OfferInfo from "./Step1OfferInfo"
-import Step2Payment from "./Step2Payment"
 import Step3ClientDetails from "./Step3ClientDetails"
-import Step4Payment from "./Step4Payment" // Import Step4Payment
-import Step5Customizations from "./Step5Customizations" // Import Step5Customizations
+import Step4Payment from "./Step4Payment"
+import Step5Customizations from "./Step5Customizations"
 import SignatureStep from "./SignatureStep"
 import DocumentViewer from "./DocumentViewer"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, ArrowRight, Home } from "lucide-react"
 import { useRouter } from "next/navigation"
 
-const TOTAL_STEPS = 7 // Update TOTAL_STEPS to 7
+const TOTAL_STEPS = 6
 
 export default function OnboardingWizard() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState<OnboardingData>({
-    offer_type: "Executive",
+    offer_type: "Orage90",
     business_name: "",
     contact_name: "",
     client_email: "",
@@ -29,8 +28,8 @@ export default function OnboardingWizard() {
     client_city: "",
     client_state: "",
     client_zip: "",
-    setup_fee: 5000,
-    monthly_fee: 197,
+    setup_fee: 7500,
+    monthly_fee: 2500,
     is_referral: "no",
     signature: "",
   })
@@ -59,14 +58,18 @@ export default function OnboardingWizard() {
       case 1:
         return !!formData.offer_type
       case 2:
-        return true // Payment links step
+        return !!(
+          formData.business_name &&
+          formData.contact_name &&
+          formData.client_email &&
+          formData.client_phone &&
+          formData.client_address
+        )
       case 3:
-        return formData.business_name && formData.contact_name && formData.client_email && formData.client_phone && formData.client_address
-      case 4:
         return true // Referral is optional
-      case 5:
+      case 4:
         return true // Customizations are optional
-      case 6:
+      case 5:
         return !!formData.signature // Signature is required
       default:
         return true
@@ -117,12 +120,11 @@ export default function OnboardingWizard() {
         {/* Step Content */}
         <div className="glass-panel rounded-lg p-4 md:p-8 mb-8">
           {currentStep === 1 && <Step1OfferInfo formData={formData} updateFormData={updateFormData} />}
-          {currentStep === 2 && <Step2Payment formData={formData} updateFormData={updateFormData} />}
-          {currentStep === 3 && <Step3ClientDetails formData={formData} updateFormData={updateFormData} />}
-          {currentStep === 4 && <Step4Payment formData={formData} updateFormData={updateFormData} />}
-          {currentStep === 5 && <Step5Customizations formData={formData} updateFormData={updateFormData} />}
-          {currentStep === 6 && <SignatureStep formData={formData} updateFormData={updateFormData} />}
-          {currentStep === 7 && <DocumentViewer formData={formData} />}
+          {currentStep === 2 && <Step3ClientDetails formData={formData} updateFormData={updateFormData} />}
+          {currentStep === 3 && <Step4Payment formData={formData} updateFormData={updateFormData} />}
+          {currentStep === 4 && <Step5Customizations formData={formData} updateFormData={updateFormData} />}
+          {currentStep === 5 && <SignatureStep formData={formData} updateFormData={updateFormData} />}
+          {currentStep === 6 && <DocumentViewer formData={formData} />}
         </div>
 
         {/* Navigation */}
@@ -142,7 +144,7 @@ export default function OnboardingWizard() {
               disabled={!canProceed()}
               className="gradient-button text-black font-semibold px-6 md:px-8 hover:scale-105 transition-transform"
             >
-              {currentStep === 6 ? "Generate Documents" : "Next"}
+              {currentStep === 5 ? "Generate Documents" : "Next"}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}

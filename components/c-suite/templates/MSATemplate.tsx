@@ -1,113 +1,49 @@
 import type { OnboardingData } from "@/lib/types"
+import { OFFER_DEFAULTS } from "@/lib/types"
 
 export default function MSATemplate(data: OnboardingData): string {
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+  const offerDisplayName = OFFER_DEFAULTS[data.offer_type]?.displayName || data.offer_type
 
   const getServiceDescription = () => {
     switch (data.offer_type) {
-      case "Executive":
-        return `The AGENCY will provide the CLIENT with premium full-service AI implementation including:
+      case "Toolkit":
+        return `The AGENCY will provide the CLIENT with self-serve access to the Orage AI Toolkit, including:
+- "AI for Business" platform and course (full curriculum access)
 - Free CRM (Customer Relationship Management system)
-- AI voice/phone agent implementation
-- Email/SMS AI agent setup and configuration
-- Custom onboarding tailored to your business
-- "AI for Business" platform/course access
-- 24/7 access to AI tools (no support guarantee)
-${data.custom_services ? `\nAdditional Custom Services:\n${data.custom_services}` : ""}`
-
-      case "Premier":
-        return `The AGENCY will provide the CLIENT with same-day act now AI services including:
-- Free CRM (Customer Relationship Management system)
-- AI voice/phone agent implementation
-- Email/SMS AI agent setup and configuration
-- Custom onboarding tailored to your business
-- "AI for Business" platform/course access
-- 24/7 access to AI tools (no support guarantee)
+- Library of AI tools, templates, and workflow walkthroughs
+- Access to community channels and learning resources
+- 24/7 access to AI tools (no implementation guarantee)
 ${data.custom_services ? `\nAdditional Custom Services:\n${data.custom_services}` : ""}
 
-NOTE: This is a 24-hour same day act now offer with reduced setup fee.`
+NOTE: The Toolkit is a self-paced, self-serve offering. Custom one-on-one onboarding and done-for-you implementation are NOT included. CLIENT may upgrade to Orage 90 or AI-Enabled Companies at any time.`
 
-      case "Startup":
-        return `The AGENCY will provide the CLIENT with financing plan AI services including:
+      case "Orage90":
+        return `The AGENCY will provide the CLIENT with a Done-For-You 90-day AI implementation, including:
 - Free CRM (Customer Relationship Management system)
-- AI voice/phone agent implementation
-- Email/SMS AI agent setup
-- Custom onboarding for your business
+- Custom AI voice/phone agent setup and configuration
+- Email/SMS AI agent implementation
+- Custom 90-day onboarding tailored to your business
 - "AI for Business" platform/course access
-- 24/7 access to AI tools (no support guarantee)
+- Integration with existing business systems and workflows
+- 24/7 access to AI tools and ongoing optimization during the 90-day window
 ${data.custom_services ? `\nAdditional Custom Services:\n${data.custom_services}` : ""}
 
-NOTE: This is a financing plan for the Executive offer at $597/month for a full one-year contract with no cancellation option.`
+NOTE: Orage 90 is a done-for-you implementation. The AGENCY drives setup and configuration during the 90-day onboarding period. After 90 days, services continue month-to-month at the recurring fee.`
 
-      case "CourseOnly":
-        return `The AGENCY will provide the CLIENT with access to:
-- "AI for Business" online course/hub with comprehensive training
-- Free CRM (Customer Relationship Management system)
-- AI tools, education, videos, tutorials, templates, and walk-throughs
-- Skills development for AI implementation
-- 24/7 access to AI tools (no custom onboarding - self-paced learning)
-- Benefits and rewards for completing course tasks (discounts, money-back offers based on tool usage and specific offers at time of promotion)
-${data.custom_services ? `\nAdditional Services:\n${data.custom_services}` : ""}
-
-NOTE: $197/month with NO contract or commitment - cancel anytime. Course Only clients lose access to CRM and tools if subscription is cancelled. This package is perfect for small businesses, entrepreneurs, and solopreneurs seeking AI education at a lower entry point. Clients can upgrade to full implementation services at any time.`
-
-      case "FreeTrial":
-        return `The AGENCY will provide the CLIENT with beta/focus group AI services including:
-- Free CRM (Customer Relationship Management system)
-- AI voice/phone agent implementation
-- Email/SMS AI agent setup and configuration
-- Custom onboarding tailored to your business
-- "AI for Business" platform/course access
-- 24/7 access to AI tools
+      case "AIEnabled":
+        return `The AGENCY will provide the CLIENT with a custom AI-Enabled Companies engagement, including:
+- All services included in the Orage 90 package PLUS:
+- Dedicated implementation team and account leadership
+- Multiple AI agents (voice, SMS, email, chat) tuned to specific business workflows
+- Custom tool development based on the CLIENT's specific operations
+- 1-on-1 strategic consulting with agency leadership
+- White-glove ongoing optimization and performance monitoring
+- Priority access to new tools, features, and capabilities
+- Executive advising and quarterly business reviews
 ${data.custom_services ? `\nAdditional Custom Services:\n${data.custom_services}` : ""}
 
-IMPORTANT NOTES FOR FREE/TRIAL/FOCUS CLIENTS:
-- This is a testing/beta engagement for focus group purposes
-- NO FEES are charged directly by ORAGE AI AGENCY
-- CLIENT is responsible for ALL third-party platform usage costs (ElevenLabs, SMS services, etc.)
-- Implementation timeline varies and is subject to business audit and AI readiness assessment
-- Services are provided to protect agency interests and gather feedback for service improvement
-- This arrangement may be converted to a standard paid offer at any time with mutual agreement`
-
-      case "Focus":
-        return `The AGENCY will provide the CLIENT with beta/focus group AI services including:
-- Free CRM (Customer Relationship Management system)
-- AI voice/phone agent implementation
-- Email/SMS AI agent setup and configuration
-- Custom onboarding tailored to your business
-- "AI for Business" platform/course access
-- 24/7 access to AI tools
-${data.custom_services ? `\nAdditional Custom Services:\n${data.custom_services}` : ""}
-
-IMPORTANT NOTES FOR FOCUS CLIENTS:
-- This is a testing/beta engagement for focus group purposes
-- NO FEES are charged directly by ORAGE AI AGENCY
-- CLIENT is responsible for ALL third-party platform usage costs (ElevenLabs, SMS services, etc.)
-- Implementation timeline varies and is subject to business audit and AI readiness assessment
-- Services are provided to protect agency interests and gather feedback for service improvement
-- This arrangement may be converted to a standard paid offer at any time with mutual agreement`
-
-      case "Agency":
-        return `The AGENCY will provide the CLIENT with premium top-tier AI services including:
-- All services included in Executive package
-- Free CRM (Customer Relationship Management system)
-- AI voice/phone agent implementation
-- Email/SMS AI agent setup and configuration
-- Custom onboarding tailored to your business
-- "AI for Business" platform/course access
-- 24/7 access to AI tools
-
-PREMIUM AGENCY-TIER EXCLUSIVE SERVICES:
-- True one-on-one consultation with leadership
-- Regular strategy calls and step-by-step consulting
-- Dedicated advising and business optimization
-- Highest priority access to new tools and features
-- Ongoing optimization and performance monitoring
-- Custom tool creation based on specific business needs
-- Priority support and rapid implementation
-${data.custom_services ? `\nAdditional Custom Services:\n${data.custom_services}` : ""}
-
-NOTE: This is our highest-tier offering at $4,000/month with NO implementation fee, NO contract (month-to-month), and includes our 30-day money back guarantee for comprehensive AI transformation and ongoing strategic partnership.`
+NOTE: AI-Enabled Companies is a custom enterprise engagement. The 90-day implementation phase is followed by ongoing strategic partnership at the agreed monthly retainer.`
 
       default:
         return "AI services as agreed upon by both parties."
@@ -120,7 +56,7 @@ CLIENT: ${data.business_name}
 CONTACT: ${data.contact_name}
 
 COMMENCE ON: ${today}
-CONCLUDE ON: ${data.offer_type === "Startup" ? "One Year from Start Date (No Cancellation)" : data.offer_type === "FreeTrial" || data.offer_type === "Focus" ? "Testing Period (Varies by Readiness)" : "Ongoing (Month-to-Month)"}
+CONCLUDE ON: 90-day implementation phase, then ongoing month-to-month
 
 1. AGREEMENT
 
@@ -130,33 +66,19 @@ This agreement contains the entire understanding between ORAGE AI AGENCY (the "A
 
 ${getServiceDescription()}
 
-The CLIENT has selected the ${data.offer_type === "FreeTrial" ? "Free/Trial/Focus" : data.offer_type === "Focus" ? "Focus" : data.offer_type} Package. ${data.offer_type === "Startup" ? "This is a one-year contract with no cancellation option." : data.offer_type === "FreeTrial" || data.offer_type === "Focus" ? "This is a testing/beta arrangement with no agency fees." : data.offer_type === "Agency" ? "This is our top-tier service with comprehensive strategic partnership." : "The contract allows flexibility for service adjustments. In the event that the CLIENT wants to upgrade packages, a new agreement will be formulated to reflect that change."}
+The CLIENT has selected the ${offerDisplayName} package. The contract allows flexibility for service adjustments. In the event that the CLIENT wants to upgrade packages, a new agreement will be formulated to reflect that change.
 
 3. PAYMENT
 
-${
-  data.offer_type === "FreeTrial" || data.offer_type === "Focus"
-    ? `
-NO AGENCY FEES APPLY FOR FREE/TRIAL/FOCUS CLIENTS.
-
-CLIENT acknowledges:
-- No setup fees or monthly fees are charged by ORAGE AI AGENCY
-- CLIENT is solely responsible for all third-party platform costs
-- This is a testing/beta arrangement for focus group purposes
-- Implementation timeline varies based on business audit and AI readiness assessment
-`
-    : `Both parties have agreed to the following payment structure:
-- Setup Fee: ${data.setup_fee > 0 ? `$${data.setup_fee.toLocaleString()}${data.offer_type === "Agency" ? " (NON-REFUNDABLE)" : ""}` : "Waived"}
-- Monthly Recurring: $${data.monthly_fee.toLocaleString()}
+Both parties have agreed to the following payment structure:
+- 90-Day Onboarding Fee: $${data.setup_fee.toLocaleString()} (covers the 90-day implementation phase)
+- Monthly Recurring: $${data.monthly_fee.toLocaleString()}/month (begins after the 90-day onboarding phase)
 
 The CLIENT will pay AGENCY the agreed amount per calendar month for their services for as long as services are rendered. This is to be paid via Stripe/Bank Transfer. AGENCY will send an invoice for the services provided at the end of each billing cycle.
 
 Payment Schedule:
-- Initial Setup Fee: ${data.setup_fee > 0 ? `$${data.setup_fee.toLocaleString()} due upon signing` : "N/A"}
-- Monthly Recurring: $${data.monthly_fee.toLocaleString()}/month begins ${data.offer_type === "Startup" ? "immediately upon signing" : "1 month from onboarding date"}
-`
-}
-
+- 90-Day Onboarding Fee: $${data.setup_fee.toLocaleString()} due upon signing
+- Monthly Recurring: $${data.monthly_fee.toLocaleString()}/month begins on day 91 from the onboarding start date
 ${
   data.is_referral === "yes" && data.referral_name
     ? `\nREFERRAL ACKNOWLEDGMENT:
@@ -165,7 +87,7 @@ Referral commission: $${data.referral_commission?.toLocaleString() || "0"}\n`
     : ""
 }
 
-${data.offer_type !== "FreeTrial" && data.offer_type !== "Focus" ? "IMPORTANT: NO SERVICES WILL BEGIN UNTIL PAYMENT IS MADE AND PROCESSED. All setup, implementation, and access provisions outlined in this agreement are contingent upon receipt and clearance of initial payment." : ""}
+IMPORTANT: NO SERVICES WILL BEGIN UNTIL PAYMENT IS MADE AND PROCESSED. All setup, implementation, and access provisions outlined in this agreement are contingent upon receipt and clearance of initial payment.
 
 4. RESPONSIBILITY OF THE AGENCY
 
@@ -177,13 +99,25 @@ Planning & Strategy:
 - Tools and systems planning
 
 Implementation:
-- AI agent setup and configuration (voice/phone, email/SMS)
+${
+  data.offer_type === "Toolkit"
+    ? `- Platform and course access provisioning
+- CRM access and basic setup guidance
+- Self-serve tool library access`
+    : data.offer_type === "Orage90"
+    ? `- AI agent setup and configuration (voice/phone, email/SMS)
 - CRM system setup and integration
-- Custom onboarding${data.offer_type === "CourseOnly" ? " (NOT included for Course Only)" : ""}
-- Platform access configuration
+- Custom 90-day onboarding
+- Platform access configuration`
+    : `- Multi-agent AI implementation (voice, SMS, email, chat)
+- CRM system setup and deep integration
+- Custom 90-day onboarding led by a dedicated implementation team
+- Custom tool development as scoped per engagement
+- Platform access configuration`
+}
 
 Ongoing Access:
-- 24/7 tool access${data.offer_type === "CourseOnly" ? " for learning" : ""}
+- 24/7 tool access${data.offer_type === "Toolkit" ? " for self-serve learning and use" : ""}
 - Platform updates and optimization
 
 AGENCY will provide all necessary AI tools, platforms, and systems needed to carry out this implementation at no further charge beyond the agreed monthly fee.
@@ -198,7 +132,13 @@ Both parties agree to maintain confidentiality of all proprietary information, b
 
 7. TERMINATION
 
-${data.offer_type === "Startup" ? "This is a ONE YEAR CONTRACT with NO CANCELLATION option. CLIENT is committed to 12 monthly payments of $597." : data.offer_type === "FreeTrial" || data.offer_type === "Focus" ? "Either party may terminate this testing arrangement at any time with written notice. No fees or penalties apply for Free/Trial/Focus clients." : `Either party may terminate this agreement with 30 days written notice. CLIENT remains responsible for payment of all services rendered through the termination date.${data.offer_type === "CourseOnly" ? "\n\nFor Course Only clients: Cancellation results in immediate loss of access to CRM, tools, and course materials. No refunds for partial months." : ""}${data.offer_type === "Agency" ? "\n\nFor Agency-tier clients: This is a month-to-month agreement with no long-term contract. Monthly fees are pro-rated to termination date." : ""}`}
+After the initial 90-day onboarding phase, either party may terminate this agreement with 30 days written notice. CLIENT remains responsible for payment of all services rendered through the termination date. The 90-day onboarding fee is non-refundable once implementation has commenced, except as covered by the 30-Day Money Back Guarantee in Section 9.
+
+${
+  data.offer_type === "Toolkit"
+    ? "For Toolkit clients: Cancellation results in immediate loss of access to CRM, tools, and course materials. No refunds for partial months."
+    : ""
+}
 
 8. THIRD-PARTY USAGE FEES & ADDITIONAL COSTS
 
@@ -215,12 +155,7 @@ Client Responsibilities:
 - AGENCY will provide guidance on usage optimization but cannot control third-party pricing structures.
 - CLIENT agrees to maintain active payment methods with third-party providers to ensure uninterrupted service.
 
-${
-  data.offer_type === "Startup"
-    ? `9. REFUND POLICY
-
-Due to the financing nature of the Startup offer, NO REFUNDS are available under any circumstances. This is a binding one-year contract with 12 monthly payments of $597. All payments are final and non-refundable.`
-    : `9. 30-DAY MONEY BACK GUARANTEE & REFUND POLICY
+9. 30-DAY MONEY BACK GUARANTEE & REFUND POLICY
 
 ORAGE AI AGENCY offers a 30-Day Money Back Guarantee on all service tiers.
 
@@ -234,12 +169,9 @@ Refund Policy After 30 Days:
 - Exceptions to this policy are limited strictly to:
   a) Specific "Win Your Money Back" offers that may be active and applicable to the CLIENT's specific engagement.
   b) Earnings through the Referral Program as outlined in separate documentation.
-- Outside of these specific exceptions, all payments made after the 30-day window are final and non-refundable.`
-}
+- Outside of these specific exceptions, all payments made after the 30-day window are final and non-refundable.
 
-${data.special_notes ? `\n10. SPECIAL TERMS & ADDITIONAL PROVISIONS\n\nThe following additional terms and conditions apply to this agreement:\n\n${data.special_notes}\n` : ""}
-
-10. AGREEMENT SIGNATURES
+${data.special_notes ? `10. SPECIAL TERMS & ADDITIONAL PROVISIONS\n\nThe following additional terms and conditions apply to this agreement:\n\n${data.special_notes}\n\n` : ""}${data.special_notes ? "11" : "10"}. AGREEMENT SIGNATURES
 
 This agreement is entered into as of ${today}.
 
