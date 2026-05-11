@@ -1,4 +1,4 @@
-import { getSql } from "@/lib/neon"
+import { MASTER_PASSWORD } from "@/lib/auth"
 
 export interface Client {
   id: string
@@ -44,11 +44,11 @@ export interface Invitation {
   status: string
   created_at: string
   updated_at?: string
-  // Admin-edited document content (stored in localStorage only)
+  // Admin-edited document content (stored in localStorage only — too large for a row write).
   msa_content?: string
   welcome_content?: string
   invoice_content?: string
-  // Generated PDFs from edited content (stored in localStorage only)
+  // Generated PDFs from edited content (stored in localStorage only).
   msa_pdf_data?: string
   welcome_pdf_data?: string
   invoice_pdf_data?: string
@@ -65,353 +65,304 @@ export interface Notification {
   created_at?: string
 }
 
-// Client operations
-export async function getClients(): Promise<Client[]> {
+const LS = {
+  clients: "c-suite-clients",
+  invitations: "client_invitations",
+  logins: "client_logins",
+  notifications: "c-suite-notifications",
+}
+
+const adminHeaders = (): HeadersInit => ({
+  "Content-Type": "application/json",
+  "X-Orage-Auth": MASTER_PASSWORD,
+})
+
+const publicHeaders: HeadersInit = { "Content-Type": "application/json" }
+
+function readLocal<T>(key: string): T[] {
+  if (typeof window === "undefined") return []
   try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      const stored = localStorage.getItem("c-suite-clients")
-      return stored ? JSON.parse(stored) : []
-    }
-    const result = await sqlClient<Client[]>`SELECT * FROM clients ORDER BY created_at DESC`
-    return result || []
-  } catch (error) {
-    console.error("[v0] Error fetching clients:", error)
-    const stored = localStorage.getItem("c-suite-clients")
-    return stored ? JSON.parse(stored) : []
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T[]) : []
+  } catch {
+    return []
   }
 }
 
-export async function saveClient(client: Client): Promise<void> {
-  const now = new Date().toISOString()
-  
+function writeLocal<T>(key: string, value: T[]) {
+  if (typeof window === "undefined") return
   try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      throw new Error("Database not available")
-    }
-    
-    await sqlClient`
-      INSERT INTO clients (
-        id, name, business_name, email, address, plan, price, setup_fee,
-        start_date, portal_access, msa_content, invoice_content, welcome_content,
-        client_signature, agency_signature, signed_at, agency_signed_at, created_at, updated_at
-      ) VALUES (
-        ${client.id}, ${client.name}, ${client.business_name}, ${client.email},
-        ${client.address || null}, ${client.plan}, ${client.price}, ${client.setup_fee || null},
-        ${client.start_date}, ${client.portal_access}, ${client.msa_content || null},
-        ${client.invoice_content || null}, ${client.welcome_content || null},
-        ${client.client_signature || null}, ${client.agency_signature || null},
-        ${client.signed_at || null}, ${client.agency_signed_at || null},
-        ${client.created_at || now}, ${now}
-      )
-      ON CONFLICT (id) DO UPDATE SET
-        name = ${client.name}, business_name = ${client.business_name}, email = ${client.email},
-        address = ${client.address || null}, plan = ${client.plan}, price = ${client.price},
-        setup_fee = ${client.setup_fee || null}, start_date = ${client.start_date},
-        portal_access = ${client.portal_access}, msa_content = ${client.msa_content || null},
-        invoice_content = ${client.invoice_content || null}, welcome_content = ${client.welcome_content || null},
-        client_signature = ${client.client_signature || null}, agency_signature = ${client.agency_signature || null},
-        signed_at = ${client.signed_at || null}, agency_signed_at = ${client.agency_signed_at || null},
-        updated_at = ${now}
-    `
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch (err) {
+    console.error("[storage] localStorage write failed for", key, err)
+  }
+}
 
-    const clients = await getClients()
-    localStorage.setItem("c-suite-clients", JSON.stringify(clients))
-  } catch (error) {
-    console.error("[v0] Error saving client:", error)
-    const stored = localStorage.getItem("c-suite-clients")
-    const clients = stored ? JSON.parse(stored) : []
-    const index = clients.findIndex((c: Client) => c.id === client.id)
-    if (index >= 0) {
-      clients[index] = client
-    } else {
-      clients.push(client)
-    }
-    localStorage.setItem("c-suite-clients", JSON.stringify(clients))
+/* ──────────────────────────────  CLIENTS  ────────────────────────────── */
+
+export async function getClients(): Promise<Client[]> {
+  try {
+    const r = await fetch("/api/portal/clients", { headers: adminHeaders(), cache: "no-store" })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const { clients } = (await r.json()) as { clients: Client[] }
+    writeLocal(LS.clients, clients)
+    return clients
+  } catch (err) {
+    console.warn("[storage] getClients fell back to localStorage:", err)
+    return readLocal<Client>(LS.clients)
+  }
+}
+
+export async function saveClient(
+  client: Client,
+  opts?: { invitationId?: string },
+): Promise<void> {
+  // Cache locally first so the UI is responsive on slow networks.
+  const local = readLocal<Client>(LS.clients)
+  const idx = local.findIndex((c) => c.id === client.id)
+  if (idx >= 0) local[idx] = client
+  else local.push(client)
+  writeLocal(LS.clients, local)
+
+  const headers: HeadersInit = opts?.invitationId ? publicHeaders : adminHeaders()
+  const payload = opts?.invitationId ? { ...client, invitation_id: opts.invitationId } : client
+  const r = await fetch("/api/portal/clients", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  })
+  if (!r.ok) {
+    const text = await r.text()
+    console.error("[storage] saveClient API failed:", r.status, text)
+    throw new Error(`Failed to save client: ${r.status}`)
   }
 }
 
 export async function deleteClient(id: string): Promise<void> {
-  try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      throw new Error("Database not available")
-    }
-    await sqlClient`DELETE FROM clients WHERE id = ${id}`
-    const clients = await getClients()
-    localStorage.setItem("c-suite-clients", JSON.stringify(clients))
-  } catch (error) {
-    console.error("[v0] Error deleting client:", error)
-    const stored = localStorage.getItem("c-suite-clients")
-    const clients = stored ? JSON.parse(stored) : []
-    localStorage.setItem("c-suite-clients", JSON.stringify(clients.filter((c: Client) => c.id !== id)))
-  }
+  const local = readLocal<Client>(LS.clients).filter((c) => c.id !== id)
+  writeLocal(LS.clients, local)
+  const r = await fetch(`/api/portal/clients?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: adminHeaders(),
+  })
+  if (!r.ok) console.warn("[storage] deleteClient API failed (local removed):", r.status)
 }
 
-// Client login operations
+/* ────────────────────────  CLIENT LOGINS  ──────────────────────────── */
+
 export async function getClientLogins(): Promise<ClientLogin[]> {
   try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      const stored = localStorage.getItem("client_logins")
-      return stored ? JSON.parse(stored) : []
-    }
-    const result = await sqlClient<ClientLogin[]>`SELECT * FROM client_logins`
-    return result || []
-  } catch (error) {
-    console.error("[v0] Error fetching client logins:", error)
-    const stored = localStorage.getItem("client_logins")
-    return stored ? JSON.parse(stored) : []
+    const r = await fetch("/api/portal/client-logins", { headers: adminHeaders(), cache: "no-store" })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const { logins } = (await r.json()) as { logins: ClientLogin[] }
+    writeLocal(LS.logins, logins)
+    return logins
+  } catch (err) {
+    console.warn("[storage] getClientLogins fell back to localStorage:", err)
+    return readLocal<ClientLogin>(LS.logins)
   }
 }
 
 export async function saveClientLogin(login: ClientLogin): Promise<void> {
+  const local = readLocal<ClientLogin>(LS.logins)
+  const idx = local.findIndex((l) => l.id === login.id)
+  if (idx >= 0) local[idx] = login
+  else local.push(login)
+  writeLocal(LS.logins, local)
+  const r = await fetch("/api/portal/client-logins", {
+    method: "POST",
+    headers: publicHeaders, // public — paired with client creation during onboard
+    body: JSON.stringify(login),
+  })
+  if (!r.ok) console.warn("[storage] saveClientLogin API failed (local saved):", r.status)
+}
+
+/* ────────────────────────  INVITATIONS  ──────────────────────────── */
+
+export async function getInvitations(): Promise<Invitation[]> {
+  // Large fields (msa_content / pdf_data) live in localStorage only — merge in.
+  const local = readLocal<Invitation>(LS.invitations)
   try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      throw new Error("Database not available")
-    }
-    await sqlClient`
-      INSERT INTO client_logins (id, client_id, password, created_at)
-      VALUES (${login.id}, ${login.client_id}, ${login.password}, ${login.created_at || new Date().toISOString()})
-      ON CONFLICT (id) DO UPDATE SET client_id = ${login.client_id}, password = ${login.password}
-    `
-    const logins = await getClientLogins()
-    localStorage.setItem("client_logins", JSON.stringify(logins))
-  } catch (error) {
-    console.error("[v0] Error saving client login:", error)
-    const stored = localStorage.getItem("client_logins")
-    const logins = stored ? JSON.parse(stored) : []
-    const index = logins.findIndex((l: ClientLogin) => l.id === login.id)
-    if (index >= 0) {
-      logins[index] = login
-    } else {
-      logins.push(login)
-    }
-    localStorage.setItem("client_logins", JSON.stringify(logins))
+    const r = await fetch("/api/portal/invitations", { headers: adminHeaders(), cache: "no-store" })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const { invitations } = (await r.json()) as { invitations: Invitation[] }
+    const merged: Invitation[] = invitations.map((inv) => {
+      const l = local.find((x) => x.id === inv.id)
+      return {
+        ...inv,
+        msa_content: l?.msa_content,
+        welcome_content: l?.welcome_content,
+        invoice_content: l?.invoice_content,
+        msa_pdf_data: l?.msa_pdf_data,
+        welcome_pdf_data: l?.welcome_pdf_data,
+        invoice_pdf_data: l?.invoice_pdf_data,
+      }
+    })
+    // Include invitations created locally that the server hasn't seen yet.
+    for (const l of local) if (!merged.find((m) => m.id === l.id)) merged.push(l)
+    return merged
+  } catch (err) {
+    console.warn("[storage] getInvitations fell back to localStorage:", err)
+    return local
   }
 }
 
-// Invitation operations
-// Large data (document content + PDF blobs) is stored ONLY in localStorage
-// Neon stores only metadata (id, business_name, status, fees, etc.)
-
-export async function getInvitations(): Promise<Invitation[]> {
-  // localStorage is the primary source for invitation data (including large content)
-  const stored = localStorage.getItem("client_invitations")
-  const localInvitations: Invitation[] = stored ? JSON.parse(stored) : []
-
+/**
+ * Public fetch by ID — used by the client onboard page. Does NOT require
+ * admin auth (the link itself is the secret).
+ */
+export async function getInvitationById(id: string): Promise<Invitation | null> {
+  const local = readLocal<Invitation>(LS.invitations).find((i) => i.id === id) || null
   try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      return localInvitations
-    }
-    
-    const result = await sqlClient<any[]>`
-      SELECT id, business_name, contact_name, offer_type, setup_fee, monthly_fee,
-             custom_services, special_notes, is_referral, referral_name, status, created_at, updated_at
-      FROM invitations
-      ORDER BY created_at DESC
-    `
-
-    const merged = (result || []).map((inv: any) => {
-      const local = localInvitations.find((l) => l.id === inv.id)
-      return {
-        ...inv,
-        // Large fields come from localStorage only
-        msa_content: local?.msa_content || undefined,
-        welcome_content: local?.welcome_content || undefined,
-        invoice_content: local?.invoice_content || undefined,
-        msa_pdf_data: local?.msa_pdf_data || undefined,
-        welcome_pdf_data: local?.welcome_pdf_data || undefined,
-        invoice_pdf_data: local?.invoice_pdf_data || undefined,
-      }
+    const r = await fetch(`/api/portal/invitations/${encodeURIComponent(id)}`, {
+      cache: "no-store",
     })
-
-    // Include localStorage-only invitations not in Neon yet
-    for (const local of localInvitations) {
-      if (!merged.find((m) => m.id === local.id)) {
-        merged.push(local)
-      }
+    if (r.status === 404) return null
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const { invitation } = (await r.json()) as { invitation: Invitation }
+    // Merge in localStorage's content fields if this is the inviter's browser.
+    return {
+      ...invitation,
+      msa_content: local?.msa_content,
+      welcome_content: local?.welcome_content,
+      invoice_content: local?.invoice_content,
+      msa_pdf_data: local?.msa_pdf_data,
+      welcome_pdf_data: local?.welcome_pdf_data,
+      invoice_pdf_data: local?.invoice_pdf_data,
     }
-
-    return merged
-  } catch (error) {
-    console.error("[v0] Error fetching invitations:", error)
-    return localInvitations
+  } catch (err) {
+    console.warn("[storage] getInvitationById fell back to localStorage:", err)
+    return local
   }
 }
 
 export async function saveInvitation(invitation: Invitation): Promise<void> {
-  // Always save full data to localStorage first
-  const stored = localStorage.getItem("client_invitations")
-  const localInvitations = stored ? JSON.parse(stored) : []
-  const localIndex = localInvitations.findIndex((i: Invitation) => i.id === invitation.id)
+  // Persist full record (incl. large content) to localStorage immediately.
+  const local = readLocal<Invitation>(LS.invitations)
+  const idx = local.findIndex((i) => i.id === invitation.id)
+  const full = { ...invitation, updated_at: new Date().toISOString() }
+  if (idx >= 0) local[idx] = full
+  else local.push(full)
+  writeLocal(LS.invitations, local)
 
-  const fullData = {
-    ...invitation,
-    updated_at: new Date().toISOString(),
+  // Send only metadata to the server. Strip large content + PDFs to keep
+  // the row small and the request fast.
+  const {
+    msa_content: _msa,
+    welcome_content: _welcome,
+    invoice_content: _invoice,
+    msa_pdf_data: _msaPdf,
+    welcome_pdf_data: _welcomePdf,
+    invoice_pdf_data: _invoicePdf,
+    ...metadata
+  } = invitation
+  void [_msa, _welcome, _invoice, _msaPdf, _welcomePdf, _invoicePdf]
+  const r = await fetch("/api/portal/invitations", {
+    method: "POST",
+    headers: adminHeaders(),
+    body: JSON.stringify(metadata),
+  })
+  if (!r.ok) {
+    const text = await r.text()
+    console.error("[storage] saveInvitation API failed:", r.status, text)
+    throw new Error(`Failed to save invitation: ${r.status}`)
   }
+}
 
-  if (localIndex >= 0) {
-    localInvitations[localIndex] = fullData
-  } else {
-    localInvitations.push(fullData)
+/**
+ * Public — flips invitation status to "completed" from the client onboard page.
+ * Hits the dedicated public route (no admin token required, link is the secret).
+ */
+export async function completeInvitationPublic(id: string): Promise<void> {
+  const local = readLocal<Invitation>(LS.invitations)
+  const idx = local.findIndex((i) => i.id === id)
+  if (idx >= 0) {
+    local[idx] = { ...local[idx], status: "completed", updated_at: new Date().toISOString() }
+    writeLocal(LS.invitations, local)
   }
-  localStorage.setItem("client_invitations", JSON.stringify(localInvitations))
-
-  // Save only metadata to Neon (no large content/PDFs)
-  try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      throw new Error("Database not available")
-    }
-    
-    const now = new Date().toISOString()
-    await sqlClient`
-      INSERT INTO invitations (
-        id, business_name, contact_name, offer_type, setup_fee, monthly_fee,
-        custom_services, special_notes, is_referral, referral_name, status, created_at, updated_at
-      ) VALUES (
-        ${invitation.id}, ${invitation.business_name}, ${invitation.contact_name || null},
-        ${invitation.offer_type}, ${invitation.setup_fee}, ${invitation.monthly_fee},
-        ${invitation.custom_services || null}, ${invitation.special_notes || null},
-        ${invitation.is_referral || null}, ${invitation.referral_name || null},
-        ${invitation.status}, ${invitation.created_at}, ${now}
-      )
-      ON CONFLICT (id) DO UPDATE SET
-        business_name = ${invitation.business_name}, contact_name = ${invitation.contact_name || null},
-        offer_type = ${invitation.offer_type}, setup_fee = ${invitation.setup_fee},
-        monthly_fee = ${invitation.monthly_fee}, custom_services = ${invitation.custom_services || null},
-        special_notes = ${invitation.special_notes || null}, is_referral = ${invitation.is_referral || null},
-        referral_name = ${invitation.referral_name || null}, status = ${invitation.status},
-        updated_at = ${now}
-    `
-  } catch (error) {
-    console.error("[v0] Neon save failed, data safe in localStorage:", error)
-  }
+  const r = await fetch(`/api/portal/invitations/${encodeURIComponent(id)}/complete`, {
+    method: "POST",
+    headers: publicHeaders,
+  })
+  if (!r.ok) console.warn("[storage] completeInvitationPublic API failed:", r.status)
 }
 
 export async function deleteInvitation(id: string): Promise<void> {
+  const local = readLocal<Invitation>(LS.invitations).filter((i) => i.id !== id)
+  writeLocal(LS.invitations, local)
+  const r = await fetch(`/api/portal/invitations?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: adminHeaders(),
+  })
+  if (!r.ok) console.warn("[storage] deleteInvitation API failed (local removed):", r.status)
+}
+
+/* ────────────────────────  NOTIFICATIONS  ──────────────────────────── */
+
+export async function getNotifications(): Promise<Notification[]> {
   try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      throw new Error("Database not available")
-    }
-    await sqlClient`DELETE FROM invitations WHERE id = ${id}`
-    const invitations = await getInvitations()
-    localStorage.setItem("client_invitations", JSON.stringify(invitations.filter((i) => i.id !== id)))
-  } catch (error) {
-    console.error("[v0] Error deleting invitation:", error)
-    const stored = localStorage.getItem("client_invitations")
-    const invitations = stored ? JSON.parse(stored) : []
-    localStorage.setItem("client_invitations", JSON.stringify(invitations.filter((i: Invitation) => i.id !== id)))
+    const r = await fetch("/api/portal/notifications", { headers: adminHeaders(), cache: "no-store" })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const { notifications } = (await r.json()) as { notifications: Array<Notification & { client_id?: string; client_name?: string }> }
+    const mapped = notifications.map((n) => ({
+      id: n.id,
+      title: n.title,
+      message: n.message,
+      type: n.type ?? undefined,
+      clientId: n.client_id ?? undefined,
+      clientName: n.client_name ?? undefined,
+      read: n.read ?? false,
+      created_at: n.created_at ?? undefined,
+    }))
+    writeLocal(LS.notifications, mapped)
+    return mapped
+  } catch (err) {
+    console.warn("[storage] getNotifications fell back to localStorage:", err)
+    return readLocal<Notification>(LS.notifications)
   }
 }
 
-// Notification operations
-export async function getNotifications(): Promise<Notification[]> {
-  try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      const stored = localStorage.getItem("c-suite-notifications")
-      return stored ? JSON.parse(stored) : []
-    }
-    
-    const result = await sqlClient<any[]>`
-      SELECT id, title, message, type, client_id, client_name, read, created_at
-      FROM notifications
-      ORDER BY created_at DESC
-    `
-
-    return (result || []).map((n: any) => ({
+export async function saveNotification(n: Notification): Promise<void> {
+  const local = readLocal<Notification>(LS.notifications)
+  const idx = local.findIndex((x) => x.id === n.id)
+  if (idx >= 0) local[idx] = n
+  else local.push(n)
+  writeLocal(LS.notifications, local)
+  const r = await fetch("/api/portal/notifications", {
+    method: "POST",
+    headers: publicHeaders, // public — fired by client-side completion paths
+    body: JSON.stringify({
       id: n.id,
       title: n.title,
       message: n.message,
       type: n.type,
-      clientId: n.client_id,
-      clientName: n.client_name,
+      client_id: n.clientId,
+      client_name: n.clientName,
       read: n.read,
       created_at: n.created_at,
-    }))
-  } catch (error) {
-    console.error("[v0] Error fetching notifications:", error)
-    const stored = localStorage.getItem("c-suite-notifications")
-    return stored ? JSON.parse(stored) : []
-  }
-}
-
-export async function saveNotification(notification: Notification): Promise<void> {
-  try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      throw new Error("Database not available")
-    }
-    
-    await sqlClient`
-      INSERT INTO notifications (id, title, message, type, client_id, client_name, read, created_at)
-      VALUES (
-        ${notification.id}, ${notification.title}, ${notification.message}, ${notification.type || "info"},
-        ${notification.clientId || null}, ${notification.clientName || null}, ${notification.read || false},
-        ${notification.created_at || new Date().toISOString()}
-      )
-      ON CONFLICT (id) DO UPDATE SET
-        title = ${notification.title}, message = ${notification.message}, type = ${notification.type || "info"},
-        client_id = ${notification.clientId || null}, client_name = ${notification.clientName || null},
-        read = ${notification.read || false}
-    `
-
-    const notifications = await getNotifications()
-    localStorage.setItem("c-suite-notifications", JSON.stringify(notifications))
-  } catch (error) {
-    console.error("[v0] Error saving notification:", error)
-    const stored = localStorage.getItem("c-suite-notifications")
-    const notifications = stored ? JSON.parse(stored) : []
-    const index = notifications.findIndex((n: Notification) => n.id === notification.id)
-    if (index >= 0) {
-      notifications[index] = notification
-    } else {
-      notifications.push(notification)
-    }
-    localStorage.setItem("c-suite-notifications", JSON.stringify(notifications))
-  }
+    }),
+  })
+  if (!r.ok) console.warn("[storage] saveNotification API failed (local saved):", r.status)
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      throw new Error("Database not available")
-    }
-    await sqlClient`UPDATE notifications SET read = true WHERE id = ${id}`
-    const notifications = await getNotifications()
-    localStorage.setItem("c-suite-notifications", JSON.stringify(notifications))
-  } catch (error) {
-    console.error("[v0] Error marking notification read:", error)
-    const stored = localStorage.getItem("c-suite-notifications")
-    const notifications = stored ? JSON.parse(stored) : []
-    const updated = notifications.map((n: Notification) => (n.id === id ? { ...n, read: true } : n))
-    localStorage.setItem("c-suite-notifications", JSON.stringify(updated))
-  }
+  const local = readLocal<Notification>(LS.notifications).map((n) =>
+    n.id === id ? { ...n, read: true } : n,
+  )
+  writeLocal(LS.notifications, local)
+  const r = await fetch(`/api/portal/notifications?id=${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: adminHeaders(),
+  })
+  if (!r.ok) console.warn("[storage] markNotificationRead API failed:", r.status)
 }
 
 export async function deleteNotification(id: string): Promise<void> {
-  try {
-    const sqlClient = await getSql()
-    if (!sqlClient) {
-      throw new Error("Database not available")
-    }
-    await sqlClient`DELETE FROM notifications WHERE id = ${id}`
-    const notifications = await getNotifications()
-    localStorage.setItem("c-suite-notifications", JSON.stringify(notifications))
-  } catch (error) {
-    console.error("[v0] Error deleting notification:", error)
-    const stored = localStorage.getItem("c-suite-notifications")
-    const notifications = stored ? JSON.parse(stored) : []
-    localStorage.setItem(
-      "c-suite-notifications",
-      JSON.stringify(notifications.filter((n: Notification) => n.id !== id)),
-    )
-  }
+  const local = readLocal<Notification>(LS.notifications).filter((n) => n.id !== id)
+  writeLocal(LS.notifications, local)
+  const r = await fetch(`/api/portal/notifications?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: adminHeaders(),
+  })
+  if (!r.ok) console.warn("[storage] deleteNotification API failed:", r.status)
 }

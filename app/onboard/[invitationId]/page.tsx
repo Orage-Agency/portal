@@ -9,7 +9,13 @@ import { type ClientInvitation, type OnboardingData, OFFER_DEFAULTS } from "@/li
 import MSATemplate from "@/components/c-suite/templates/MSATemplate"
 import InvoiceTemplate from "@/components/c-suite/templates/InvoiceTemplate"
 import WelcomeTemplate from "@/components/c-suite/templates/WelcomeTemplate"
-import { saveClient, saveClientLogin, saveInvitation, saveNotification, getInvitations } from "@/lib/storage"
+import {
+  saveClient,
+  saveClientLogin,
+  saveNotification,
+  getInvitationById,
+  completeInvitationPublic,
+} from "@/lib/storage"
 
 // Skip static generation - requires database access for dynamic invitation IDs
 export const dynamic = "force-dynamic"
@@ -44,24 +50,15 @@ export default function ClientOnboardingPage({ params }: { params: Promise<{ inv
   }, [])
 
   const loadInvitation = async () => {
-    console.log("[v0] Loading invitation from Supabase storage...")
     setIsLoading(true)
-
     try {
-      const invitations = await getInvitations()
-      console.log("[v0] All invitations:", invitations?.length || 0, "found")
-      
-      if (!invitations || invitations.length === 0) {
-        console.log("[v0] No invitations returned from storage")
-        alert("Unable to load invitation data. Please try again.")
-        setIsLoading(false)
+      const found = await getInvitationById(resolvedParams.invitationId)
+      if (!found) {
+        alert("Invalid or expired invitation link")
+        router.push("/")
         return
       }
-      
-      const found = invitations.find((inv) => inv.id === resolvedParams.invitationId)
-      console.log("[v0] Found invitation:", !!found, "Status:", found?.status)
-
-      if (found && found.status === "pending") {
+      if (found.status === "pending") {
         setInvitation(found as ClientInvitation)
         
         // Pre-fill contact name if provided by admin
@@ -76,13 +73,8 @@ export default function ClientOnboardingPage({ params }: { params: Promise<{ inv
             setReferralName(found.referral_name)
           }
         }
-      } else if (found && found.status === "completed") {
+      } else if (found.status === "completed") {
         alert("This invitation has already been completed")
-        router.push("/")
-      } else {
-        console.log("[v0] Invitation not found. Looking for ID:", resolvedParams.invitationId)
-        console.log("[v0] Available IDs:", invitations.map((i) => i.id))
-        alert("Invalid or expired invitation link")
         router.push("/")
       }
     } catch (error) {
@@ -292,9 +284,8 @@ export default function ClientOnboardingPage({ params }: { params: Promise<{ inv
       updated_at: new Date().toISOString(),
     }
 
-    console.log("[v0] Client Onboarding: Saving client record:", clientRecord)
-    await saveClient(clientRecord)
-    console.log("[v0] Client Onboarding: Client saved successfully to Supabase/storage")
+    // The invitation_id authenticates this public client save (no admin token).
+    await saveClient(clientRecord, { invitationId: resolvedParams.invitationId })
 
     await saveClientLogin({
       id: clientId,
@@ -314,20 +305,7 @@ export default function ClientOnboardingPage({ params }: { params: Promise<{ inv
       created_at: new Date().toISOString(),
     })
 
-    await saveInvitation({
-      id: resolvedParams.invitationId,
-      business_name: invitation!.business_name,
-      offer_type: invitation!.offer_type,
-      setup_fee: invitation!.setup_fee,
-      monthly_fee: invitation!.monthly_fee,
-      custom_services: invitation!.custom_services,
-      special_notes: invitation!.special_notes,
-      status: "completed",
-      created_at: invitation!.created_at,
-      updated_at: new Date().toISOString(),
-    })
-
-    console.log("[v0] Client onboarding completed successfully")
+    await completeInvitationPublic(resolvedParams.invitationId)
 
     setCompletedClientId(clientId)
     setCompletedEmail(email)
