@@ -210,13 +210,18 @@ export default function InvitationsPage() {
   }
 
   const downloadDocument = (content: string, filename: string) => {
+    // Templates emit branded HTML — save as a standalone .html file so it
+    // opens in a browser looking exactly like the in-app preview.
+    const wrapped = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${filename}</title><link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0;background:#FFFFFF;">${content}</body></html>`
+    const blob = new Blob([wrapped], { type: "text/html;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
     const element = document.createElement("a")
-    element.setAttribute("href", "data:text/plain;charset=utf-8," + encodeURIComponent(content))
-    element.setAttribute("download", filename)
-    element.style.display = "none"
+    element.href = url
+    element.download = filename.replace(/\.txt$/i, "") + ".html"
     document.body.appendChild(element)
     element.click()
     document.body.removeChild(element)
+    URL.revokeObjectURL(url)
   }
 
   const handleCancelReview = () => {
@@ -460,38 +465,30 @@ ${link}`
                   </button>
                 </div>
 
-                {/* Document Content - Editable */}
-                <div className="bg-[#0a0a0a] p-4 md:p-8 rounded-lg border border-[#B68039]/30 max-h-96 overflow-y-auto shadow-xl">
-                  <div className="text-center mb-6 border-b-2 border-[#B68039] pb-4">
-                    <img
-                      src="https://storage.googleapis.com/msgsndr/651kIrlKk834C2FEl66i/media/688a8bfb5a3e648018748f5e.png"
-                      alt="Orage AI Agency"
-                      className="h-12 mx-auto mb-4"
-                    />
-                    <h1 className="text-[#B68039] font-heading text-xl tracking-widest uppercase">Orage AI Agency</h1>
-                  </div>
+                {/* Document Content - Editable (raw HTML — tweak text inside the tags) */}
+                <div className="bg-[#0a0a0a] p-2 md:p-4 rounded-lg border border-[#B68039]/30 max-h-[28rem] overflow-y-auto shadow-xl">
                   {activeTab === "agreement" && (
                     <textarea
                       value={editableMSA}
                       onChange={(e) => setEditableMSA(e.target.value)}
-                      className="w-full bg-transparent text-white font-body text-sm leading-relaxed focus:outline-none resize-none"
-                      rows={15}
+                      className="w-full bg-transparent text-white/90 font-mono text-[11px] leading-relaxed focus:outline-none resize-y p-2"
+                      rows={20}
                     />
                   )}
                   {activeTab === "welcome" && (
                     <textarea
                       value={editableWelcome}
                       onChange={(e) => setEditableWelcome(e.target.value)}
-                      className="w-full bg-transparent text-white font-body text-sm leading-relaxed focus:outline-none resize-none"
-                      rows={15}
+                      className="w-full bg-transparent text-white/90 font-mono text-[11px] leading-relaxed focus:outline-none resize-y p-2"
+                      rows={20}
                     />
                   )}
                   {activeTab === "invoice" && (
                     <textarea
                       value={editableInvoice}
                       onChange={(e) => setEditableInvoice(e.target.value)}
-                      className="w-full bg-transparent text-white font-body text-sm leading-relaxed focus:outline-none resize-none"
-                      rows={15}
+                      className="w-full bg-transparent text-white/90 font-mono text-[11px] leading-relaxed focus:outline-none resize-y p-2"
+                      rows={20}
                     />
                   )}
                 </div>
@@ -580,21 +577,19 @@ ${link}`
                 </button>
               </div>
 
-              {/* PDF Preview Content */}
-              <div className="bg-[#0a0a0a] p-4 md:p-8 rounded-lg border border-[#B68039]/30 max-h-96 overflow-y-auto shadow-xl">
-                <div className="text-center mb-6 border-b-2 border-[#B68039] pb-4">
-                  <img
-                    src="https://storage.googleapis.com/msgsndr/651kIrlKk834C2FEl66i/media/688a8bfb5a3e648018748f5e.png"
-                    alt="Orage AI Agency"
-                    className="h-12 mx-auto mb-4"
-                  />
-                  <h1 className="text-[#B68039] font-heading text-xl tracking-widest uppercase">Orage AI Agency</h1>
-                </div>
-                <div className="text-white font-body text-sm leading-relaxed whitespace-pre-wrap">
-                  {activeTab === "agreement" && editableMSA}
-                  {activeTab === "welcome" && editableWelcome}
-                  {activeTab === "invoice" && editableInvoice}
-                </div>
+              {/* Rendered preview — exactly what the client will see */}
+              <div className="bg-[#0a0a0a] p-2 md:p-4 rounded-lg border border-[#B68039]/30 max-h-[32rem] overflow-y-auto shadow-xl">
+                <div
+                  className="bg-white rounded"
+                  dangerouslySetInnerHTML={{
+                    __html:
+                      activeTab === "agreement"
+                        ? editableMSA
+                        : activeTab === "welcome"
+                        ? editableWelcome
+                        : editableInvoice,
+                  }}
+                />
               </div>
 
               {/* Download Buttons */}

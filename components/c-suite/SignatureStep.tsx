@@ -142,18 +142,8 @@ export default function SignatureStep({ formData, updateFormData }: SignatureSte
             Download Preview (PDF)
           </Button>
         </div>
-        <div className="h-64 md:h-96 overflow-y-auto bg-black/40 p-4 rounded border border-white/10 text-white text-sm font-body">
-          <div className="text-center mb-6 border-b-2 border-[#B68039] pb-4">
-            <img
-              src="https://storage.googleapis.com/msgsndr/651kIrlKk834C2FEl66i/media/688a8bfb5a3e648018748f5e.png"
-              alt="Orage AI Agency"
-              className="h-12 mx-auto mb-4"
-            />
-            <h1 className="text-[#B68039] font-heading text-xl tracking-widest uppercase">Orage AI Agency</h1>
-          </div>
-          <div className="whitespace-pre-wrap leading-relaxed text-orage-100">
-            <div dangerouslySetInnerHTML={{ __html: getMSAContent() }} />
-          </div>
+        <div className="h-64 md:h-96 overflow-y-auto bg-black/40 p-2 rounded border border-white/10">
+          <div className="bg-white rounded" dangerouslySetInnerHTML={{ __html: getMSAContent() }} />
         </div>
         <p className="text-white/50 text-xs mt-2 text-center">Scroll to review the full agreement</p>
       </div>

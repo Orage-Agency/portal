@@ -10,6 +10,7 @@ import MSATemplate from "./templates/MSATemplate"
 import InvoiceTemplate from "./templates/InvoiceTemplate"
 import WelcomeTemplate from "./templates/WelcomeTemplate"
 import { saveClient, saveClientLogin, saveNotification } from "@/lib/storage"
+import { generateAndDownloadPDF } from "@/lib/pdf"
 
 interface DocumentViewerProps {
   formData: OnboardingData
@@ -92,47 +93,24 @@ If you have any questions, feel free to reach out to our team.`
     toast({ title: "Next Step Message Copied!", description: "Ready to send to your client", duration: 5000 })
   }
 
-  const downloadAsPDF = (content: string, filename: string) => {
-    const printWindow = window.open("", "", "height=800,width=800")
-    if (!printWindow) return
-
+  const downloadAsPDF = async (content: string, filename: string) => {
+    // Templates emit self-contained, branded, light-mode HTML — render straight to PDF.
+    // If a client signature exists and this is the MSA, inline it into the signature block.
     let finalContent = content
     if (filename.includes("MSA") && formData.signature) {
-      const signatureBlock = `${formData.business_name}\nSignature: ________________________`
-      const signatureImg = `${formData.business_name}\nSignature: <img src="${formData.signature}" alt="Client Signature" style="max-height: 60px; vertical-align: middle; border-bottom: 1px solid #B68039;" />`
-      finalContent = finalContent.replace(signatureBlock, signatureImg)
+      finalContent = finalContent.replace(
+        /<div style="height:48px;border-bottom:1px solid #B68039;margin:0 0 6px;"><\/div>/g,
+        (_match, offset, source) => {
+          // Replace only the SECOND signature placeholder (the client one).
+          const before = source.slice(0, offset)
+          const isClient = (before.match(/height:48px;border-bottom:1px solid #B68039/g) || []).length >= 1
+          if (!isClient) return _match
+          return `<img src="${formData.signature}" alt="Client Signature" style="max-height:60px;display:block;margin:0 0 4px;" />`
+        },
+      )
     }
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${filename}</title>
-          <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap" rel="stylesheet">
-          <style>
-            body { font-family: 'Montserrat', sans-serif; padding: 40px; line-height: 1.6; color: #e5e5e5; background-color: #0a0a0a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #B68039; padding-bottom: 20px; }
-            .header img { max-height: 60px; margin-bottom: 10px; }
-            .header h1 { color: #B68039; font-size: 24px; letter-spacing: 2px; margin: 0; text-transform: uppercase; }
-            .content { white-space: pre-line; word-wrap: break-word; font-family: 'Montserrat', sans-serif; font-size: 12px; color: #e5e5e5; }
-            @media print { body { background-color: #0a0a0a !important; color: #e5e5e5 !important; } .header { border-bottom-color: #B68039 !important; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <img src="https://storage.googleapis.com/msgsndr/651kIrlKk834C2FEl66i/media/688a8bfb5a3e648018748f5e.png" alt="Orage AI Agency Logo" />
-            <h1>Orage AI Agency</h1>
-          </div>
-          <div class="content">${finalContent}</div>
-        </body>
-      </html>
-    `)
-    printWindow.document.close()
-
-    setTimeout(() => {
-      printWindow.focus()
-      printWindow.print()
-      toast({ title: "PDF Ready", description: 'Save as PDF in the print dialog. Ensure "Background graphics" is enabled.' })
-    }, 500)
+    await generateAndDownloadPDF(finalContent, filename)
+    toast({ title: "PDF downloaded", description: "Saved to your downloads folder." })
   }
 
   const saveToPortal = async () => {
@@ -267,28 +245,17 @@ If you have any questions, feel free to reach out to our team.`
             </Button>
           </div>
         </div>
-        <div className="bg-[#0a0a0a] p-4 md:p-8 rounded-lg border border-[#B68039]/30 max-h-[28rem] overflow-y-auto shadow-xl">
-          <div className="text-center mb-6 border-b-2 border-[#B68039] pb-4">
-            <img
-              src="https://storage.googleapis.com/msgsndr/651kIrlKk834C2FEl66i/media/688a8bfb5a3e648018748f5e.png"
-              alt="Orage AI Agency"
-              className="h-12 mx-auto mb-4"
-            />
-            <h1 className="text-[#B68039] font-heading text-xl tracking-widest uppercase">Orage AI Agency</h1>
-          </div>
+        <div className="bg-[#0a0a0a] p-2 md:p-4 rounded-lg border border-[#B68039]/30 max-h-[32rem] overflow-y-auto shadow-xl">
           {mode === "edit" ? (
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               spellCheck={false}
-              className="w-full bg-transparent text-white/90 font-body text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-gold/30 resize-y rounded p-2 min-h-[20rem]"
-              rows={20}
+              className="w-full bg-transparent text-white/90 font-mono text-[11px] leading-relaxed focus:outline-none focus:ring-1 focus:ring-gold/30 resize-y rounded p-3 min-h-[20rem]"
+              rows={22}
             />
           ) : (
-            <div
-              className="whitespace-pre-wrap leading-relaxed text-orage-100 font-body text-sm"
-              dangerouslySetInnerHTML={{ __html: content }}
-            />
+            <div className="bg-white rounded" dangerouslySetInnerHTML={{ __html: content }} />
           )}
         </div>
       </div>

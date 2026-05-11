@@ -645,19 +645,8 @@ Login Credentials:
                     Download Preview (PDF)
                   </button>
                 </div>
-                <div className="h-64 md:h-96 overflow-y-auto bg-black/40 p-4 rounded border border-white/10 text-white text-sm font-body">
-                  <div className="text-center mb-8 pb-6 border-b-2 border-[#B68039]">
-                    <img
-                      src="https://storage.googleapis.com/msgsndr/651kIrlKk834C2FEl66i/media/688a8bfb5a3e648018748f5e.png"
-                      alt="Orage AI Agency"
-                      className="h-12 mx-auto mb-3"
-                    />
-                    <h1 className="text-[#B68039] font-heading text-xl tracking-widest uppercase font-bold">ORAGE AI AGENCY</h1>
-                  </div>
-                  <div
-                    className="whitespace-pre-wrap leading-relaxed text-orage-100"
-                    dangerouslySetInnerHTML={{ __html: getMSAContent() }}
-                  />
+                <div className="h-64 md:h-96 overflow-y-auto bg-black/40 p-2 rounded border border-white/10">
+                  <div className="bg-white rounded" dangerouslySetInnerHTML={{ __html: getMSAContent() }} />
                 </div>
                 <p className="text-white/50 text-xs mt-2 text-center">Scroll to review the full agreement</p>
               </div>
