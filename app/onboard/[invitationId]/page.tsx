@@ -345,19 +345,17 @@ export default function ClientOnboardingPage({ params }: { params: Promise<{ inv
 
           <div className="bg-gradient-to-r from-[#B68039]/20 to-[#B68039]/10 border-2 border-[#B68039] rounded-lg p-6 mb-8">
             <h2 className="font-heading text-xl md:text-2xl text-[#B68039] mb-4">
-              NEXT STEP: COMPLETE YOUR ONBOARDING
+              ONE MORE STEP — BUILD YOUR AGENTS
             </h2>
             <p className="text-white/80 font-body mb-6 leading-relaxed">
-              To fully activate your Orage AI Agency services, please complete your CRM onboarding and AI Agent setup.
-              This is required to access all features and tools in your client portal.
+              Three minutes of voice + a few quick taps. We turn your answers into a phone agent
+              and chat agent tuned to your business — live in 48 hours, no separate setup call needed.
             </p>
             <a
-              href="https://client.orage.agency/crm"
-              target="_blank"
-              rel="noopener noreferrer"
+              href={`/onboard/${resolvedParams.invitationId}/intake`}
               className="inline-block w-full gradient-button text-black font-heading text-lg md:text-xl px-6 py-4 rounded-lg transition-all duration-300 transform hover:scale-105"
             >
-              CONTINUE TO CRM & AI AGENT ONBOARDING →
+              CONTINUE TO AGENT SETUP →
             </a>
           </div>
 

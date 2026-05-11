@@ -56,7 +56,14 @@ for (const f of files) {
       await sql.query(cleaned)
       applied++
     } catch (err) {
-      console.error(`  ✗ ${f} :: ${err.message}\n    ${cleaned.slice(0, 120)}...`)
+      // Treat "already exists" as a no-op — these scripts are designed to be
+      // idempotent but PostgreSQL has no IF NOT EXISTS for policies.
+      const msg = String(err.message || "")
+      if (/already exists/i.test(msg)) {
+        applied++
+        continue
+      }
+      console.error(`  ✗ ${f} :: ${msg}\n    ${cleaned.slice(0, 120)}...`)
       process.exit(1)
     }
   }
