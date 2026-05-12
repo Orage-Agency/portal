@@ -6,8 +6,8 @@ import { checkMasterAuth } from "@/lib/auth"
 import { generateClientId } from "@/lib/auth"
 import { type OfferType, OFFER_DEFAULTS, type Invitation } from "@/lib/types"
 import Link from "next/link"
-import { Share2, Download, Trash2 } from "lucide-react"
-import { getInvitations, saveInvitation, deleteInvitation } from "@/lib/storage"
+import { Share2, Download, Trash2, Mail, CheckCircle2 } from "lucide-react"
+import { getInvitations, saveInvitation, deleteInvitation, sendInvitationEmail } from "@/lib/storage"
 import { generatePDFFromText } from "@/lib/pdf"
 import { MSATemplate, WelcomeTemplate, InvoiceTemplate } from "@/lib/templates"
 
@@ -19,6 +19,8 @@ export default function InvitationsPage() {
   const [mounted, setMounted] = useState(false)
   const [businessName, setBusinessName] = useState("")
   const [contactName, setContactName] = useState("")
+  const [clientEmail, setClientEmail] = useState("")
+  const [sendingId, setSendingId] = useState<string | null>(null)
   const [isReferral, setIsReferral] = useState<"yes" | "no">("no")
   const [referralName, setReferralName] = useState("")
   const [offerType, setOfferType] = useState<OfferType>("Orage90")
@@ -76,7 +78,7 @@ export default function InvitationsPage() {
     const formData = {
       business_name: businessName,
       contact_name: contactName || businessName,
-      client_email: "",
+      client_email: clientEmail,
       client_phone: "",
       client_address: "",
       client_city: "",
@@ -147,6 +149,7 @@ export default function InvitationsPage() {
         id: generateClientId(),
         business_name: businessName,
         contact_name: contactName || undefined,
+        client_email: clientEmail.trim() || undefined,
         offer_type: offerType,
         setup_fee: setupFee,
         monthly_fee: monthlyFee,
@@ -177,6 +180,7 @@ export default function InvitationsPage() {
       // Reset form and review step
       setBusinessName("")
       setContactName("")
+      setClientEmail("")
       setIsReferral("no")
       setReferralName("")
       setCustomServices("")
@@ -290,6 +294,33 @@ ${generatedLink}`
     alert("Share text copied to clipboard!")
   }
 
+  const handleSendInvitation = async (inv: Invitation) => {
+    const target = (inv.client_email || "").trim() ||
+      (prompt(`Email the signing link to ${inv.business_name} at:`)?.trim() ?? "")
+    if (!target) return
+    setSendingId(inv.id)
+    try {
+      const res = await sendInvitationEmail(inv.id, { email: target })
+      setInvitations((prev) =>
+        prev.map((i) =>
+          i.id === inv.id ? { ...i, client_email: res.sent_to, sent_at: res.sent_at } : i,
+        ),
+      )
+      alert(`Signing link emailed to ${res.sent_to}`)
+    } catch (e) {
+      alert(`Failed to send invitation: ${(e as Error).message}`)
+    } finally {
+      setSendingId(null)
+    }
+  }
+
+  const handleSendGeneratedLink = async () => {
+    // Latest created invitation is at the top of the list.
+    const latest = invitations[0]
+    if (!latest) return
+    await handleSendInvitation(latest)
+  }
+
   const sharePendingLink = (id: string) => {
     const link = `${window.location.origin}/onboard/${id}`
     const text = `Here is your onboarding link for Orage AI Agency, please complete to get started:
@@ -376,6 +407,18 @@ ${link}`
                   className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold/50"
                   placeholder="Enter contact person's name"
                 />
+              </div>
+
+              <div>
+                <label className="block text-white font-body mb-2 text-sm md:text-base">Client Email *</label>
+                <input
+                  type="email"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold/50"
+                  placeholder="client@business.com"
+                />
+                <p className="text-white/40 text-xs mt-1">The signing link will be emailed here from team@orage.agency.</p>
               </div>
 
               <div>
@@ -664,10 +707,18 @@ ${generatedLink}`}
               </button>
               <button
                 onClick={shareLink}
-                className="w-full sm:w-auto px-4 md:px-8 py-3 bg-gradient-to-r from-[#B68039] to-[#8B6028] hover:from-[#9B6A2F] hover:to-[#7A5222] text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg transform hover:scale-105 text-xs md:text-base whitespace-normal h-auto min-h-[44px]"
+                className="w-full sm:w-auto px-4 md:px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 text-xs md:text-base whitespace-normal h-auto min-h-[44px]"
               >
                 <Share2 className="h-4 w-4 flex-shrink-0" />
                 <span>COPY FULL INVITATION MESSAGE</span>
+              </button>
+              <button
+                onClick={handleSendGeneratedLink}
+                disabled={sendingId !== null}
+                className="w-full sm:w-auto px-4 md:px-8 py-3 bg-gradient-to-r from-[#B68039] to-[#8B6028] hover:from-[#9B6A2F] hover:to-[#7A5222] disabled:opacity-50 text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg transform hover:scale-105 text-xs md:text-base whitespace-normal h-auto min-h-[44px]"
+              >
+                <Mail className="h-4 w-4 flex-shrink-0" />
+                <span>{sendingId ? "SENDING..." : "EMAIL TO CLIENT"}</span>
               </button>
             </div>
           </div>
@@ -749,6 +800,17 @@ ${generatedLink}`}
                           <p className="text-white/60 text-sm md:text-base break-words">
                             {OFFER_DEFAULTS[inv.offer_type as OfferType]?.displayName || inv.offer_type} — ${inv.setup_fee.toLocaleString()} (90-day) + ${inv.monthly_fee.toLocaleString()}/mo
                           </p>
+                          {inv.client_email && (
+                            <p className="text-white/60 text-xs md:text-sm mt-1 break-all">
+                              <span className="text-gold">Email:</span> {inv.client_email}
+                            </p>
+                          )}
+                          {inv.sent_at && (
+                            <p className="text-emerald-400/80 text-xs mt-1 flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Sent {new Date(inv.sent_at).toLocaleString()}
+                            </p>
+                          )}
                           <p className="text-white/40 text-xs md:text-sm mt-1 break-all">ID: {inv.id}</p>
                         </div>
                       </div>
@@ -765,10 +827,18 @@ ${generatedLink}`}
                         </button>
                         <button
                           onClick={() => sharePendingLink(inv.id)}
-                          className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-[#B68039] to-[#8B6028] hover:from-[#9B6A2F] hover:to-[#7A5222] text-white font-bold rounded transition-all text-sm flex items-center justify-center gap-2 shadow-md transform hover:scale-105 text-xs md:text-sm whitespace-normal h-auto min-h-[40px]"
+                          className="w-full sm:w-auto px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded transition-all text-sm flex items-center justify-center gap-2 text-xs md:text-sm whitespace-normal h-auto min-h-[40px]"
                         >
                           <Share2 className="h-3 w-3 flex-shrink-0" />
                           <span>COPY MESSAGE</span>
+                        </button>
+                        <button
+                          onClick={() => handleSendInvitation(inv)}
+                          disabled={sendingId === inv.id}
+                          className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-[#B68039] to-[#8B6028] hover:from-[#9B6A2F] hover:to-[#7A5222] disabled:opacity-50 text-white font-bold rounded transition-all text-sm flex items-center justify-center gap-2 shadow-md transform hover:scale-105 text-xs md:text-sm whitespace-normal h-auto min-h-[40px]"
+                        >
+                          <Mail className="h-3 w-3 flex-shrink-0" />
+                          <span>{sendingId === inv.id ? "SENDING..." : inv.sent_at ? "RESEND" : "EMAIL CLIENT"}</span>
                         </button>
                       </div>
                     </div>

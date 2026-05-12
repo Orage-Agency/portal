@@ -34,6 +34,7 @@ export interface Invitation {
   id: string
   business_name: string
   contact_name?: string
+  client_email?: string
   offer_type: string
   setup_fee: number
   monthly_fee: number
@@ -44,6 +45,7 @@ export interface Invitation {
   status: string
   created_at: string
   updated_at?: string
+  sent_at?: string
   // Admin-edited document content (stored in localStorage only — too large for a row write).
   msa_content?: string
   welcome_content?: string
@@ -285,6 +287,38 @@ export async function completeInvitationPublic(id: string): Promise<void> {
     headers: publicHeaders,
   })
   if (!r.ok) console.warn("[storage] completeInvitationPublic API failed:", r.status)
+}
+
+/**
+ * Admin — dispatches the signing-link email through Gmail SMTP and stamps
+ * `sent_at` + `client_email` on the row.
+ */
+export async function sendInvitationEmail(
+  id: string,
+  opts?: { email?: string; contact_name?: string },
+): Promise<{ sent_to: string; sent_at: string }> {
+  const r = await fetch(`/api/portal/invitations/${encodeURIComponent(id)}/send`, {
+    method: "POST",
+    headers: adminHeaders(),
+    body: JSON.stringify(opts ?? {}),
+  })
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) {
+    throw new Error((data as { error?: string }).error || `Send failed (${r.status})`)
+  }
+  // Reflect the send in localStorage so the UI shows "Sent" without a refetch.
+  const local = readLocal<Invitation>(LS.invitations)
+  const idx = local.findIndex((i) => i.id === id)
+  if (idx >= 0) {
+    local[idx] = {
+      ...local[idx],
+      client_email: (data as { sent_to?: string }).sent_to || local[idx].client_email,
+      sent_at: (data as { sent_at?: string }).sent_at,
+      updated_at: new Date().toISOString(),
+    }
+    writeLocal(LS.invitations, local)
+  }
+  return data as { sent_to: string; sent_at: string }
 }
 
 export async function deleteInvitation(id: string): Promise<void> {

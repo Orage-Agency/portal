@@ -19,6 +19,7 @@ export async function GET(
       id: string
       business_name: string
       contact_name: string | null
+      client_email: string | null
       offer_type: string
       setup_fee: number | string
       monthly_fee: number | string
@@ -29,10 +30,11 @@ export async function GET(
       status: string
       created_at: string
       updated_at: string | null
+      sent_at: string | null
     }>>`
-      SELECT id, business_name, contact_name, offer_type, setup_fee, monthly_fee,
+      SELECT id, business_name, contact_name, client_email, offer_type, setup_fee, monthly_fee,
              custom_services, special_notes, is_referral, referral_name, status,
-             created_at, updated_at
+             created_at, updated_at, sent_at
       FROM invitations
       WHERE id = ${id}
       LIMIT 1
