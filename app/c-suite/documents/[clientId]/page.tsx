@@ -3,10 +3,15 @@
 import { useEffect, useState, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Download, CheckCircle, Mail, Pencil, Save, X } from "lucide-react"
+import { ArrowLeft, Download, CheckCircle, Mail, Pencil, Save, X, Send, FileDown, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import MSATemplate from "@/components/c-suite/templates/MSATemplate"
-import { getClients, saveClient, saveNotification } from "@/lib/storage"
+import {
+  getClients,
+  saveClient,
+  saveNotification,
+  clearClientSignature,
+} from "@/lib/storage"
 import { generateAndDownloadPDF } from "@/lib/pdf"
 import type { Client } from "@/lib/storage"
 
@@ -51,6 +56,8 @@ export default function ClientDocumentsPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [editDraft, setEditDraft] = useState("")
   const [savingEdit, setSavingEdit] = useState(false)
+  const [showSignShare, setShowSignShare] = useState(false)
+  const [clearingSig, setClearingSig] = useState<"client" | "agency" | null>(null)
   const { toast } = useToast()
   const router = useRouter()
   const clientId = params.clientId as string
@@ -247,6 +254,119 @@ If you have any questions, feel free to reach out to our team.`
     return ""
   }
 
+  /**
+   * Build a public sign URL + an invitation message body. Shared by the
+   * "Copy link", "Open in Email", and "Download .eml" actions.
+   */
+  const buildSignShare = () => {
+    if (!client) return null
+    const link = `${window.location.origin}/sign/${client.id}`
+    const subject = `Please sign your Orage AI Agency agreement`
+    const body = `Hi ${client.name || client.business_name},
+
+Your agreement is ready to sign — click the link below. After signing, you'll be able to download the signed PDF for your records.
+
+${link}
+
+— Orage AI Agency
+team@orage.agency`
+    return { link, subject, body }
+  }
+
+  const copySignLink = () => {
+    const s = buildSignShare()
+    if (!s) return
+    navigator.clipboard.writeText(s.link)
+    toast({ title: "Sign link copied", description: s.link })
+  }
+
+  const copySignMessage = () => {
+    const s = buildSignShare()
+    if (!s) return
+    navigator.clipboard.writeText(s.body)
+    toast({ title: "Message copied", description: "Paste it into any email or text" })
+  }
+
+  const openSignInEmail = () => {
+    const s = buildSignShare()
+    if (!s || !client) return
+    const params = new URLSearchParams()
+    params.set("subject", s.subject)
+    params.set("body", s.body)
+    const url = `mailto:${encodeURIComponent(client.email || "")}?${params.toString()}`
+    window.location.href = url
+  }
+
+  const downloadSignEml = () => {
+    const s = buildSignShare()
+    if (!s || !client) return
+    const safeName = (client.business_name || "client").replace(/[^a-z0-9-_]+/gi, "_")
+    const headers = [
+      `From: team@orage.agency`,
+      client.email ? `To: ${client.email}` : null,
+      `Subject: ${s.subject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: text/plain; charset=UTF-8`,
+      `Content-Transfer-Encoding: 8bit`,
+      `X-Orage-Client-Id: ${client.id}`,
+      `X-Orage-Sign-Link: ${s.link}`,
+    ]
+      .filter(Boolean)
+      .join("\r\n")
+    const eml = `${headers}\r\n\r\n${s.body}\r\n`
+    const blob = new Blob([eml], { type: "message/rfc822" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `Orage_SignRequest_${safeName}.eml`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  /**
+   * Removes the client or agency signature from the stored client record.
+   * After clearing, the next PDF download (or sign-link send) starts from
+   * a clean slate.
+   */
+  const removeSignature = async (which: "client" | "agency") => {
+    if (!client) return
+    const label = which === "client" ? "the client's signature" : "the agency signature"
+    if (!confirm(`Remove ${label}? This cannot be undone — the signature image will be deleted.`)) {
+      return
+    }
+    setClearingSig(which)
+    try {
+      await clearClientSignature(client.id, which)
+      const updated: Client = {
+        ...client,
+        updated_at: new Date().toISOString(),
+      }
+      if (which === "client") {
+        updated.client_signature = undefined
+        updated.signed_at = undefined
+      } else {
+        updated.agency_signature = undefined
+        updated.agency_signed_at = undefined
+      }
+      setClient(updated)
+      toast({
+        title: "Signature removed",
+        description: which === "client" ? "The client can sign again via a new sign link." : "You can re-sign as the agency anytime.",
+      })
+    } catch (e) {
+      console.error("[documents] removeSignature failed:", e)
+      toast({
+        title: "Could not remove signature",
+        description: (e as Error).message,
+        variant: "destructive",
+      })
+    } finally {
+      setClearingSig(null)
+    }
+  }
+
   const startEditing = () => {
     setEditDraft(getDocumentContent())
     setIsEditing(true)
@@ -414,6 +534,13 @@ If you have any questions, feel free to reach out to our team.`
               Back
             </Button>
             <Button
+              onClick={() => setShowSignShare(true)}
+              className="flex-1 md:flex-none gradient-button text-black font-semibold"
+            >
+              <Send className="mr-2 h-4 w-4" />
+              Send for Signature
+            </Button>
+            <Button
               onClick={() => router.push("/c-suite/admin")}
               variant="outline"
               className="flex-1 md:flex-none bg-white/5 border-white/10 text-white hover:bg-white/10"
@@ -446,9 +573,21 @@ If you have any questions, feel free to reach out to our team.`
               </Button>
             )}
             {client.agency_signature && (
-              <div className="flex items-center text-[#B68039] bg-[#B68039]/10 px-3 py-1 rounded-full border border-[#B68039]/20">
-                <CheckCircle className="mr-2 h-3 w-3" />
-                <span className="text-xs font-semibold">Agency Signed</span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center text-[#B68039] bg-[#B68039]/10 px-3 py-1 rounded-full border border-[#B68039]/20">
+                  <CheckCircle className="mr-2 h-3 w-3" />
+                  <span className="text-xs font-semibold">Agency Signed</span>
+                </div>
+                <Button
+                  onClick={() => removeSignature("agency")}
+                  disabled={clearingSig === "agency"}
+                  variant="outline"
+                  className="px-3 py-1 h-auto text-xs bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
+                  title="Remove agency signature"
+                >
+                  <Trash2 className="mr-1 h-3 w-3" />
+                  {clearingSig === "agency" ? "Removing…" : "Remove"}
+                </Button>
               </div>
             )}
           </div>
@@ -529,7 +668,19 @@ Login Credentials:
             <div className="flex items-start gap-4">
               <CheckCircle className="h-6 w-6 text-[#B68039] mt-1" />
               <div className="flex-1">
-                <h3 className="font-heading text-xl text-[#B68039] mb-2">DOCUMENT SIGNED</h3>
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+                  <h3 className="font-heading text-xl text-[#B68039]">DOCUMENT SIGNED</h3>
+                  <Button
+                    onClick={() => removeSignature("client")}
+                    disabled={clearingSig === "client"}
+                    variant="outline"
+                    className="px-3 py-1 h-auto text-xs bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
+                    title="Remove the client's signature so they can sign again"
+                  >
+                    <Trash2 className="mr-1 h-3 w-3" />
+                    {clearingSig === "client" ? "Removing…" : "Remove signature"}
+                  </Button>
+                </div>
                 <p className="text-white/70 font-body mb-3">
                   Signed by {client.name} on{" "}
                   {client.signed_at ? new Date(client.signed_at).toLocaleDateString() : "N/A"}
@@ -657,6 +808,67 @@ Login Credentials:
           )}
         </div>
       </div>
+
+      {/* Send-for-signature share modal */}
+      {showSignShare && client && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-orage-black border border-gold/30 rounded-lg p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="font-heading text-2xl text-gold">SEND FOR SIGNATURE</h3>
+              <button
+                onClick={() => setShowSignShare(false)}
+                className="text-white/50 hover:text-white"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-white/70 text-sm mb-4">
+              Share this link with <span className="text-gold">{client.email || client.name}</span>. They'll see the document, sign, and can download the signed PDF — no portal account needed.
+            </p>
+            <div className="bg-black/40 border border-white/10 rounded p-3 mb-4 break-all text-white/80 text-xs font-mono">
+              {`${typeof window !== "undefined" ? window.location.origin : ""}/sign/${client.id}`}
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <Button
+                onClick={copySignLink}
+                variant="outline"
+                className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Copy link
+              </Button>
+              <Button
+                onClick={copySignMessage}
+                variant="outline"
+                className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Copy message
+              </Button>
+              <Button
+                onClick={downloadSignEml}
+                variant="outline"
+                className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                Download .eml
+              </Button>
+              <Button
+                onClick={openSignInEmail}
+                className="gradient-button text-black font-semibold"
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                Open in Email
+              </Button>
+            </div>
+            <p className="text-white/40 text-xs leading-relaxed">
+              <span className="text-gold">Open in Email</span> launches your default mail app with the message pre-filled.{" "}
+              <span className="text-gold">Download .eml</span> saves a draft you can drag into any mail client. No setup required.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Agency signature modal that was missing */}
       {isSigning && (

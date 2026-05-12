@@ -321,6 +321,100 @@ export async function sendInvitationEmail(
   return data as { sent_to: string; sent_at: string }
 }
 
+/**
+ * Admin — clears the client's signature, the agency's signature, or both.
+ */
+export async function clearClientSignature(
+  clientId: string,
+  which: "client" | "agency" | "both",
+): Promise<void> {
+  const r = await fetch(
+    `/api/portal/clients/${encodeURIComponent(clientId)}/clear-signature`,
+    {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ which }),
+    },
+  )
+  if (!r.ok) {
+    const text = await r.text()
+    throw new Error(`Failed to clear signature: ${r.status} ${text}`)
+  }
+  // Reflect locally so the documents page doesn't have to refetch.
+  const local = readLocal<Client>(LS.clients)
+  const idx = local.findIndex((c) => c.id === clientId)
+  if (idx >= 0) {
+    const c = { ...local[idx] }
+    if (which === "client" || which === "both") {
+      c.client_signature = undefined
+      c.signed_at = undefined
+    }
+    if (which === "agency" || which === "both") {
+      c.agency_signature = undefined
+      c.agency_signed_at = undefined
+    }
+    c.updated_at = new Date().toISOString()
+    local[idx] = c
+    writeLocal(LS.clients, local)
+  }
+}
+
+/* ────────────────────────  PUBLIC SIGN  ──────────────────────────── */
+
+/**
+ * Public — fetches a client by ID for the /sign/[id] public sign page.
+ * Returns just the fields needed to render the document + show existing
+ * signature state. No admin auth required (the client ID is the secret).
+ */
+export interface PublicClientForSign {
+  id: string
+  name: string
+  business_name: string
+  email: string
+  msa_content?: string | null
+  invoice_content?: string | null
+  welcome_content?: string | null
+  client_signature?: string | null
+  agency_signature?: string | null
+  signed_at?: string | null
+  agency_signed_at?: string | null
+}
+
+export async function getClientForSigning(
+  clientId: string,
+): Promise<PublicClientForSign | null> {
+  const r = await fetch(
+    `/api/portal/clients/${encodeURIComponent(clientId)}/sign-public`,
+    { cache: "no-store" },
+  )
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`Failed to load client: ${r.status}`)
+  const data = (await r.json()) as { client: PublicClientForSign }
+  return data.client
+}
+
+/**
+ * Public — submits a client signature. Returns the signed_at timestamp.
+ */
+export async function submitClientSignature(
+  clientId: string,
+  signature: string,
+): Promise<{ signed_at: string }> {
+  const r = await fetch(
+    `/api/portal/clients/${encodeURIComponent(clientId)}/sign-public`,
+    {
+      method: "POST",
+      headers: publicHeaders,
+      body: JSON.stringify({ signature }),
+    },
+  )
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) {
+    throw new Error((data as { error?: string }).error || `Signature submit failed (${r.status})`)
+  }
+  return data as { signed_at: string }
+}
+
 export async function deleteInvitation(id: string): Promise<void> {
   const local = readLocal<Invitation>(LS.invitations).filter((i) => i.id !== id)
   writeLocal(LS.invitations, local)
