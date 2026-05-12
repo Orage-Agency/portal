@@ -7,10 +7,34 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 /**
+ * Idempotent table init — runs on every call but is a no-op after the
+ * first. This means the admin can click "Send for Signature" without
+ * running `node scripts/run-migrations.mjs` first.
+ */
+async function ensureTable(): Promise<void> {
+  await sql()`
+    CREATE TABLE IF NOT EXISTS public.sign_tokens (
+      token TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      doc_key TEXT DEFAULT 'msa',
+      signed_at TIMESTAMP,
+      signature TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      expires_at TIMESTAMP
+    )
+  `
+  await sql()`CREATE INDEX IF NOT EXISTS idx_sign_tokens_client_id ON public.sign_tokens(client_id)`
+  await sql()`CREATE INDEX IF NOT EXISTS idx_sign_tokens_signed_at ON public.sign_tokens(signed_at)`
+}
+
+/**
  * Admin — mint a new one-time signing token for a client. POST returns the
  * fresh token and the full URL it points to. The token is the bearer secret
  * in /sign/t/<token>; once consumed it locks (subsequent attempts return
- * 410 Gone).
+ * 410 Gone). Also wipes any existing client_signature so the new link
+ * starts from a clean state — this is what makes "Send for Signature" a
+ * one-click action even when the client previously signed.
  */
 export async function POST(
   req: Request,
@@ -23,7 +47,10 @@ export async function POST(
     const body = (await req.json().catch(() => ({}))) as {
       doc_key?: "msa" | "welcome" | "invoice"
       expires_in_days?: number
+      preserve_signature?: boolean
     }
+
+    await ensureTable()
 
     // Confirm the client exists before minting a token.
     const exists = await sql()<Array<{ id: string }>>`
@@ -46,13 +73,28 @@ export async function POST(
       VALUES (${token}, ${id}, ${docKey}, ${now}, ${now}, ${expiresAt})
     `
 
+    // Clear the existing client signature so the new link genuinely
+    // captures a fresh one. Admin can opt out via { preserve_signature: true }.
+    if (!body.preserve_signature) {
+      await sql()`
+        UPDATE clients
+        SET client_signature = NULL, signed_at = NULL, updated_at = ${now}
+        WHERE id = ${id}
+      `
+    }
+
     const origin =
       process.env.PORTAL_BASE_URL ||
       process.env.NEXT_PUBLIC_SITE_URL ||
       new URL(req.url).origin
     const url = `${origin.replace(/\/+$/, "")}/sign/t/${token}`
 
-    return NextResponse.json({ token, url, expires_at: expiresAt })
+    return NextResponse.json({
+      token,
+      url,
+      expires_at: expiresAt,
+      cleared_existing_signature: !body.preserve_signature,
+    })
   } catch (err) {
     console.error("[sign-tokens] create failed:", err)
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
@@ -71,6 +113,7 @@ export async function GET(
   if (denied) return denied
   try {
     const { id } = await params
+    await ensureTable()
     const rows = await sql()<Array<{
       token: string
       client_id: string
@@ -89,3 +132,4 @@ export async function GET(
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
 }
+

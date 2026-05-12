@@ -287,6 +287,18 @@ team@orage.agency`
     try {
       const res = await createSignToken(client.id, { doc_key: "msa" })
       setSignLink(res.url)
+      // The server wipes the existing client signature when minting so the
+      // new link captures a fresh one — reflect that locally so the
+      // "Document Signed" card disappears immediately. The admin's
+      // countersignature stays put.
+      if (res.cleared_existing_signature && client.client_signature) {
+        setClient({
+          ...client,
+          client_signature: undefined,
+          signed_at: undefined,
+          updated_at: new Date().toISOString(),
+        })
+      }
       setShowSignShare(true)
     } catch (e) {
       console.error("[documents] createSignToken failed:", e)

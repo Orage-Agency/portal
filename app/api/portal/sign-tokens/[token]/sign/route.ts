@@ -20,6 +20,18 @@ export async function POST(
     if (!body.signature) {
       return NextResponse.json({ error: "signature is required" }, { status: 400 })
     }
+    // Safety net — if the admin somehow hit /sign first without the create
+    // route having run, the table still exists.
+    await sql()`CREATE TABLE IF NOT EXISTS public.sign_tokens (
+      token TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      doc_key TEXT DEFAULT 'msa',
+      signed_at TIMESTAMP,
+      signature TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      expires_at TIMESTAMP
+    )`
 
     const tokenRows = await sql()<Array<{
       token: string
