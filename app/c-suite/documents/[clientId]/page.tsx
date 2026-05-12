@@ -11,6 +11,7 @@ import {
   saveClient,
   saveNotification,
   clearClientSignature,
+  createSignToken,
 } from "@/lib/storage"
 import { generateAndDownloadPDF } from "@/lib/pdf"
 import type { Client } from "@/lib/storage"
@@ -57,6 +58,8 @@ export default function ClientDocumentsPage() {
   const [editDraft, setEditDraft] = useState("")
   const [savingEdit, setSavingEdit] = useState(false)
   const [showSignShare, setShowSignShare] = useState(false)
+  const [signLink, setSignLink] = useState<string | null>(null)
+  const [mintingToken, setMintingToken] = useState(false)
   const [clearingSig, setClearingSig] = useState<"client" | "agency" | null>(null)
   const { toast } = useToast()
   const router = useRouter()
@@ -255,41 +258,66 @@ If you have any questions, feel free to reach out to our team.`
   }
 
   /**
-   * Build a public sign URL + an invitation message body. Shared by the
-   * "Copy link", "Open in Email", and "Download .eml" actions.
+   * Build the share text for a given (already-minted) sign URL. The URL is
+   * a one-time token — each "Send for Signature" press creates a fresh one.
    */
-  const buildSignShare = () => {
+  const buildSignShare = (url: string) => {
     if (!client) return null
-    const link = `${window.location.origin}/sign/${client.id}`
     const subject = `Please sign your Orage AI Agency agreement`
     const body = `Hi ${client.name || client.business_name},
 
-Your agreement is ready to sign — click the link below. After signing, you'll be able to download the signed PDF for your records.
+Your agreement is ready to sign — click the link below. It's a one-time link, so it locks the moment you sign.
 
-${link}
+${url}
+
+After you sign, we'll countersign and email you the final signed PDF.
 
 — Orage AI Agency
 team@orage.agency`
-    return { link, subject, body }
+    return { link: url, subject, body }
+  }
+
+  /**
+   * Click handler for the header "Send for Signature" button — mints a
+   * fresh single-use token and opens the share modal with the new URL.
+   */
+  const openSendForSignature = async () => {
+    if (!client) return
+    setMintingToken(true)
+    try {
+      const res = await createSignToken(client.id, { doc_key: "msa" })
+      setSignLink(res.url)
+      setShowSignShare(true)
+    } catch (e) {
+      console.error("[documents] createSignToken failed:", e)
+      toast({
+        title: "Could not create sign link",
+        description: (e as Error).message,
+        variant: "destructive",
+      })
+    } finally {
+      setMintingToken(false)
+    }
   }
 
   const copySignLink = () => {
-    const s = buildSignShare()
-    if (!s) return
-    navigator.clipboard.writeText(s.link)
-    toast({ title: "Sign link copied", description: s.link })
+    if (!signLink) return
+    navigator.clipboard.writeText(signLink)
+    toast({ title: "Sign link copied", description: signLink })
   }
 
   const copySignMessage = () => {
-    const s = buildSignShare()
+    if (!signLink) return
+    const s = buildSignShare(signLink)
     if (!s) return
     navigator.clipboard.writeText(s.body)
     toast({ title: "Message copied", description: "Paste it into any email or text" })
   }
 
   const openSignInEmail = () => {
-    const s = buildSignShare()
-    if (!s || !client) return
+    if (!signLink || !client) return
+    const s = buildSignShare(signLink)
+    if (!s) return
     const params = new URLSearchParams()
     params.set("subject", s.subject)
     params.set("body", s.body)
@@ -298,8 +326,9 @@ team@orage.agency`
   }
 
   const downloadSignEml = () => {
-    const s = buildSignShare()
-    if (!s || !client) return
+    if (!signLink || !client) return
+    const s = buildSignShare(signLink)
+    if (!s) return
     const safeName = (client.business_name || "client").replace(/[^a-z0-9-_]+/gi, "_")
     const headers = [
       `From: team@orage.agency`,
@@ -534,11 +563,12 @@ team@orage.agency`
               Back
             </Button>
             <Button
-              onClick={() => setShowSignShare(true)}
-              className="flex-1 md:flex-none gradient-button text-black font-semibold"
+              onClick={openSendForSignature}
+              disabled={mintingToken}
+              className="flex-1 md:flex-none gradient-button text-black font-semibold disabled:opacity-50"
             >
               <Send className="mr-2 h-4 w-4" />
-              Send for Signature
+              {mintingToken ? "Generating…" : "Send for Signature"}
             </Button>
             <Button
               onClick={() => router.push("/c-suite/admin")}
@@ -810,24 +840,28 @@ Login Credentials:
       </div>
 
       {/* Send-for-signature share modal */}
-      {showSignShare && client && (
+      {showSignShare && client && signLink && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-orage-black border border-gold/30 rounded-lg p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-4">
               <h3 className="font-heading text-2xl text-gold">SEND FOR SIGNATURE</h3>
               <button
-                onClick={() => setShowSignShare(false)}
+                onClick={() => {
+                  setShowSignShare(false)
+                  setSignLink(null)
+                }}
                 className="text-white/50 hover:text-white"
                 aria-label="Close"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="text-white/70 text-sm mb-4">
-              Share this link with <span className="text-gold">{client.email || client.name}</span>. They'll see the document, sign, and can download the signed PDF — no portal account needed.
+            <p className="text-white/70 text-sm mb-2">
+              Unique, one-time link for <span className="text-gold">{client.email || client.name}</span>.
+              It locks the moment they sign.
             </p>
-            <div className="bg-black/40 border border-white/10 rounded p-3 mb-4 break-all text-white/80 text-xs font-mono">
-              {`${typeof window !== "undefined" ? window.location.origin : ""}/sign/${client.id}`}
+            <div className="bg-black/40 border border-gold/30 rounded p-3 mb-4 break-all text-white/90 text-xs font-mono">
+              {signLink}
             </div>
             <div className="grid grid-cols-2 gap-2 mb-3">
               <Button
@@ -862,10 +896,17 @@ Login Credentials:
                 Open in Email
               </Button>
             </div>
-            <p className="text-white/40 text-xs leading-relaxed">
+            <p className="text-white/40 text-xs leading-relaxed mb-3">
               <span className="text-gold">Open in Email</span> launches your default mail app with the message pre-filled.{" "}
               <span className="text-gold">Download .eml</span> saves a draft you can drag into any mail client. No setup required.
             </p>
+            <button
+              onClick={openSendForSignature}
+              disabled={mintingToken}
+              className="text-xs text-white/50 hover:text-white/80 underline disabled:opacity-50"
+            >
+              {mintingToken ? "Generating…" : "Need a different link? Generate a new one"}
+            </button>
           </div>
         </div>
       )}

@@ -359,6 +359,98 @@ export async function clearClientSignature(
   }
 }
 
+/* ────────────────────────  SIGN TOKENS  ──────────────────────────── */
+
+/**
+ * Admin — mint a unique one-time signing link for an existing client.
+ * Returns the bearer token plus the full URL to share.
+ */
+export async function createSignToken(
+  clientId: string,
+  opts?: { doc_key?: "msa" | "welcome" | "invoice"; expires_in_days?: number },
+): Promise<{ token: string; url: string; expires_at: string | null }> {
+  const r = await fetch(
+    `/api/portal/clients/${encodeURIComponent(clientId)}/sign-tokens`,
+    {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify(opts ?? {}),
+    },
+  )
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) {
+    throw new Error((data as { error?: string }).error || `Could not create sign link (${r.status})`)
+  }
+  return data as { token: string; url: string; expires_at: string | null }
+}
+
+export interface PublicTokenDocument {
+  token: string
+  client_id: string
+  doc_key: string
+  signed_at: string | null
+  expires_at: string | null
+  business_name: string
+  name: string
+  email: string
+  msa_content: string | null
+  invoice_content: string | null
+  welcome_content: string | null
+  agency_signature: string | null
+  agency_signed_at: string | null
+}
+
+/**
+ * Public — load the document a one-time token points to. Returns
+ * { locked: true } if the token has already been used, { expired: true }
+ * if it has expired, or null if it doesn't exist.
+ */
+export async function getDocumentByToken(
+  token: string,
+): Promise<
+  | { document: PublicTokenDocument; locked?: false; expired?: false }
+  | { locked: true }
+  | { expired: true }
+  | null
+> {
+  const r = await fetch(
+    `/api/portal/sign-tokens/${encodeURIComponent(token)}`,
+    { cache: "no-store" },
+  )
+  if (r.status === 404) return null
+  const data = await r.json().catch(() => ({}))
+  if (r.status === 410) {
+    if ((data as { locked?: boolean }).locked) return { locked: true }
+    if ((data as { expired?: boolean }).expired) return { expired: true }
+    return { locked: true }
+  }
+  if (!r.ok) throw new Error((data as { error?: string }).error || `Failed (${r.status})`)
+  return { document: (data as { document: PublicTokenDocument }).document }
+}
+
+/**
+ * Public — submit a signature against a one-time token. Server atomically
+ * locks the token + writes the signature to the client row.
+ */
+export async function submitSignatureForToken(
+  token: string,
+  signature: string,
+): Promise<{ signed_at: string; client_id: string }> {
+  const r = await fetch(
+    `/api/portal/sign-tokens/${encodeURIComponent(token)}/sign`,
+    {
+      method: "POST",
+      headers: publicHeaders,
+      body: JSON.stringify({ signature }),
+    },
+  )
+  const data = await r.json().catch(() => ({}))
+  if (!r.ok) {
+    throw new Error((data as { error?: string }).error || `Signature submit failed (${r.status})`)
+  }
+  return data as { signed_at: string; client_id: string }
+}
+
 /* ────────────────────────  PUBLIC SIGN  ──────────────────────────── */
 
 /**
