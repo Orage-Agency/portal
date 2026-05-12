@@ -3,10 +3,11 @@
 import { useEffect, useState, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Download, CheckCircle, Mail } from "lucide-react"
+import { ArrowLeft, Download, CheckCircle, Mail, Pencil, Save, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import MSATemplate from "@/components/c-suite/templates/MSATemplate"
 import { getClients, saveClient, saveNotification } from "@/lib/storage"
+import { generateAndDownloadPDF } from "@/lib/pdf"
 import type { Client } from "@/lib/storage"
 
 // Skip static generation - requires client-side auth and database access
@@ -47,6 +48,9 @@ export default function ClientDocumentsPage() {
   const [selectedDoc, setSelectedDoc] = useState<"msa" | "invoice" | "welcome">("msa")
   const [isSigning, setIsSigning] = useState(false)
   const [agencySignature, setAgencySignature] = useState("")
+  const [isEditing, setIsEditing] = useState(false)
+  const [editDraft, setEditDraft] = useState("")
+  const [savingEdit, setSavingEdit] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
   const clientId = params.clientId as string
@@ -140,102 +144,40 @@ If you have any questions, feel free to reach out to our team.`
     })
   }
 
-  const downloadAsPDF = (content: string, filename: string) => {
-    const printWindow = window.open("", "", "height=800,width=800")
-    if (printWindow) {
-      // Prepare content with signature if it's the MSA and signature exists
-      let finalContent = content
+  const downloadAsPDF = async (content: string, filename: string) => {
+    // The MSA template already inlines signature <img> tags via the
+    // {{client_signature}} / {{agency_signature}} placeholders, so we can
+    // hand the HTML straight to the renderer. For older records that still
+    // contain the literal "Signature: ___" placeholder lines, replace them
+    // with the captured signature image before rendering.
+    let finalContent = content
 
-      if (filename.includes("MSA")) {
-        if (client?.signature) {
-          const signatureBlock = `${client.business_name}\nSignature: ________________________`
-          const signatureImg = `${client.business_name}\nSignature: <img src="${client.signature}" alt="Client Signature" style="max-height: 60px; vertical-align: middle; border-bottom: 1px solid #B68039;" />`
-          finalContent = finalContent.replace(signatureBlock, signatureImg)
-        }
-        // Agency signature is already in the content if signed, but we ensure it renders correctly
-        if (client?.agency_signature) {
-          const agencySigBlock = `ORAGE AI AGENCY\nSignature: ________________________`
-          const agencySigImg = `ORAGE AI AGENCY\nSignature: <img src="${client.agency_signature}" alt="Agency Signature" style="max-height: 60px; vertical-align: middle; border-bottom: 1px solid #B68039;" />`
-          finalContent = finalContent.replace(agencySigBlock, agencySigImg)
-        }
+    if (filename.includes("msa") || filename.toLowerCase().includes("msa")) {
+      if (client?.client_signature) {
+        const placeholder = `${client.business_name}\nSignature: ________________________`
+        const replacement = `${client.business_name}\nSignature: <img src="${client.client_signature}" alt="Client Signature" style="max-height:60px;vertical-align:middle;border-bottom:1px solid #B68039;" />`
+        finalContent = finalContent.replace(placeholder, replacement)
       }
+      if (client?.agency_signature) {
+        const placeholder = `ORAGE AI AGENCY\nSignature: ________________________`
+        const replacement = `ORAGE AI AGENCY\nSignature: <img src="${client.agency_signature}" alt="Agency Signature" style="max-height:60px;vertical-align:middle;border-bottom:1px solid #B68039;" />`
+        finalContent = finalContent.replace(placeholder, replacement)
+      }
+    }
 
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${filename}</title>
-            <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap" rel="stylesheet">
-            <style>
-              body {
-                font-family: 'Montserrat', sans-serif;
-                padding: 40px;
-                line-height: 1.6;
-                color: #000000;
-                background-color: #ffffff;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-              }
-              .header {
-                text-align: center;
-                margin-bottom: 40px;
-                border-bottom: 2px solid #B68039;
-                padding-bottom: 20px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-              }
-              .header img {
-                max-height: 60px;
-                margin-bottom: 10px;
-              }
-              .header h1 {
-                color: #B68039;
-                font-size: 24px;
-                letter-spacing: 2px;
-                margin: 0;
-                text-transform: uppercase;
-              }
-              .content {
-                white-space: pre-wrap;
-                word-wrap: break-word;
-                font-family: 'Montserrat', sans-serif;
-                font-size: 12px;
-                color: #000000;
-              }
-              @media print {
-                body {
-                  background-color: #ffffff !important;
-                  color: #000000 !important;
-                }
-                .header {
-                  border-bottom-color: #B68039 !important;
-                }
-                .header h1 {
-                  color: #B68039 !important;
-                }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <img src="https://storage.googleapis.com/msgsndr/651kIrlKk834C2FEl66i/media/688a8bfb5a3e648018748f5e.png" alt="Orage AI Agency Logo" />
-              <h1>ORAGE AI AGENCY</h1>
-            </div>
-            <div class="content">${finalContent}</div>
-          </body>
-        </html>
-      `)
-      printWindow.document.close()
-
-      setTimeout(() => {
-        printWindow.focus()
-        printWindow.print()
-        toast({
-          title: "PDF Ready",
-          description: 'Save as PDF in the print dialog. Ensure "Background graphics" is enabled.',
-        })
-      }, 500)
+    try {
+      await generateAndDownloadPDF(finalContent, filename)
+      toast({
+        title: "PDF Downloaded",
+        description: `${filename}.pdf saved to your downloads.`,
+      })
+    } catch (err) {
+      console.error("[documents] PDF generation failed:", err)
+      toast({
+        title: "PDF generation failed",
+        description: "Try again or use the TXT download as a fallback.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -304,6 +246,60 @@ If you have any questions, feel free to reach out to our team.`
     if (selectedDoc === "welcome") return client.welcome_content || ""
     return ""
   }
+
+  const startEditing = () => {
+    setEditDraft(getDocumentContent())
+    setIsEditing(true)
+  }
+
+  const cancelEditing = () => {
+    setIsEditing(false)
+    setEditDraft("")
+  }
+
+  const saveEditing = async () => {
+    if (!client) return
+    setSavingEdit(true)
+    try {
+      const field =
+        selectedDoc === "msa"
+          ? "msa_content"
+          : selectedDoc === "invoice"
+            ? "invoice_content"
+            : "welcome_content"
+      const updated: Client = {
+        ...client,
+        [field]: editDraft,
+        updated_at: new Date().toISOString(),
+      }
+      await saveClient(updated)
+      setClient(updated)
+      setIsEditing(false)
+      setEditDraft("")
+      toast({
+        title: "Saved",
+        description: `${getDocumentName()} updated. PDF downloads will use the new wording.`,
+      })
+    } catch (err) {
+      console.error("[documents] saveEditing failed:", err)
+      toast({
+        title: "Save failed",
+        description: "Couldn't save your changes. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  // Whenever the admin switches docs while editing, drop the unsaved draft.
+  useEffect(() => {
+    if (isEditing) {
+      setIsEditing(false)
+      setEditDraft("")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDoc])
 
   const getDocumentName = () => {
     const names = {
@@ -564,62 +560,101 @@ Login Credentials:
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3 mb-6">
-            <Button
-              onClick={() => downloadAsPDF(getDocumentContent(), `${client.business_name}_${selectedDoc}`)}
-              className="flex-1 md:flex-none gradient-button text-black font-semibold hover:opacity-90"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Save as PDF
-            </Button>
-            <Button
-              onClick={() => downloadDocument(getDocumentContent(), `${client.business_name}_${selectedDoc}`, "txt")}
-              variant="outline"
-              className="flex-1 md:flex-none bg-white/5 border-white/10 text-white hover:bg-white/10"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              TXT
-            </Button>
-            <Button
-              onClick={() => downloadDocument(getDocumentContent(), `${client.business_name}_${selectedDoc}`, "doc")}
-              variant="outline"
-              className="flex-1 md:flex-none bg-white/5 border-white/10 text-white hover:bg-white/10"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              DOC
-            </Button>
-            <Button
-              onClick={() => copyDocument(getDocumentContent(), getDocumentName())}
-              variant="outline"
-              className="flex-1 md:flex-none bg-white/5 border-white/10 text-white hover:bg-white/10"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Copy
-            </Button>
-            <Button
-              onClick={() => printDocument(getDocumentContent())}
-              variant="outline"
-              className="flex-1 md:flex-none bg-white/5 border-white/10 text-white hover:bg-white/10"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Print
-            </Button>
+            {!isEditing ? (
+              <>
+                <Button
+                  onClick={() => downloadAsPDF(getDocumentContent(), `${client.business_name}_${selectedDoc}`)}
+                  className="flex-1 md:flex-none gradient-button text-black font-semibold hover:opacity-90"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </Button>
+                <Button
+                  onClick={startEditing}
+                  variant="outline"
+                  className="flex-1 md:flex-none bg-white/5 border-[#B68039]/40 text-[#B68039] hover:bg-[#B68039]/10"
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+                <Button
+                  onClick={() => downloadDocument(getDocumentContent(), `${client.business_name}_${selectedDoc}`, "txt")}
+                  variant="outline"
+                  className="flex-1 md:flex-none bg-white/5 border-white/10 text-white hover:bg-white/10"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  TXT
+                </Button>
+                <Button
+                  onClick={() => copyDocument(getDocumentContent(), getDocumentName())}
+                  variant="outline"
+                  className="flex-1 md:flex-none bg-white/5 border-white/10 text-white hover:bg-white/10"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Copy
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={saveEditing}
+                  disabled={savingEdit}
+                  className="flex-1 md:flex-none gradient-button text-black font-semibold hover:opacity-90 disabled:opacity-50"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {savingEdit ? "Saving…" : "Save changes"}
+                </Button>
+                <Button
+                  onClick={cancelEditing}
+                  disabled={savingEdit}
+                  variant="outline"
+                  className="flex-1 md:flex-none bg-white/5 border-white/10 text-white hover:bg-white/10"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Cancel
+                </Button>
+              </>
+            )}
           </div>
 
-          {/* Document Content */}
-          <div className="bg-[#0a0a0a] p-4 md:p-8 rounded-lg border border-[#B68039]/30 max-h-[600px] overflow-y-auto shadow-xl">
-            <div className="text-center mb-6 border-b-2 border-[#B68039] pb-4">
-              <img
-                src="https://storage.googleapis.com/msgsndr/651kIrlKk834C2FEl66i/media/688a8bfb5a3e648018748f5e.png"
-                alt="Orage AI Agency"
-                className="h-12 mx-auto mb-4"
+          {/* Document Content — preview when read-only, raw HTML textarea when editing */}
+          {!isEditing ? (
+            <div className="bg-[#0a0a0a] p-4 md:p-8 rounded-lg border border-[#B68039]/30 max-h-[600px] overflow-y-auto shadow-xl">
+              <div className="text-center mb-6 border-b-2 border-[#B68039] pb-4">
+                <img
+                  src="https://storage.googleapis.com/msgsndr/651kIrlKk834C2FEl66i/media/688a8bfb5a3e648018748f5e.png"
+                  alt="Orage AI Agency"
+                  className="h-12 mx-auto mb-4"
+                />
+                <h1 className="text-[#B68039] font-heading text-xl tracking-widest uppercase">Orage AI Agency</h1>
+              </div>
+              <div
+                className="whitespace-pre-line leading-relaxed text-orage-100 font-body text-sm"
+                dangerouslySetInnerHTML={{ __html: getDocumentContent() }}
               />
-              <h1 className="text-[#B68039] font-heading text-xl tracking-widest uppercase">Orage AI Agency</h1>
             </div>
-            <div
-              className="whitespace-pre-line leading-relaxed text-orage-100 font-body text-sm"
-              dangerouslySetInnerHTML={{ __html: getDocumentContent() }}
-            />
-          </div>
+          ) : (
+            <div className="bg-[#0a0a0a] p-4 md:p-6 rounded-lg border border-[#B68039]/30 shadow-xl">
+              <p className="text-white/60 text-xs mb-3 leading-relaxed">
+                Editing <span className="text-gold">{getDocumentName()}</span>. The raw HTML below is rendered into the PDF —
+                tweak any wording, dates, or names you need. Don't worry about the &lt;tags&gt;, just edit the text between them.
+              </p>
+              <textarea
+                value={editDraft}
+                onChange={(e) => setEditDraft(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded p-3 text-white/90 font-mono text-[12px] leading-relaxed focus:outline-none focus:border-gold/50 resize-y"
+                rows={26}
+                spellCheck={false}
+              />
+              <div className="mt-4 bg-white/5 border border-white/10 rounded p-3 max-h-[280px] overflow-y-auto">
+                <p className="text-white/40 text-[10px] uppercase tracking-wider mb-2">Live preview</p>
+                <div
+                  className="bg-white rounded p-3 text-sm"
+                  dangerouslySetInnerHTML={{ __html: editDraft }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
