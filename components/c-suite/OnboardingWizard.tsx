@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { OnboardingData } from "@/lib/types"
+import type { OnboardingData, Invitation } from "@/lib/types"
+import { generateClientId } from "@/lib/auth"
+import { saveInvitation } from "@/lib/storage"
 import StepIndicator from "./StepIndicator"
 import Step1OfferInfo from "./Step1OfferInfo"
 import Step3ClientDetails from "./Step3ClientDetails"
@@ -10,7 +12,7 @@ import Step5Customizations from "./Step5Customizations"
 import SignatureStep from "./SignatureStep"
 import DocumentViewer from "./DocumentViewer"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, ArrowRight, Home } from "lucide-react"
+import { ArrowLeft, ArrowRight, Home, Send, X, Mail, FileDown } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 const TOTAL_STEPS = 6
@@ -33,6 +35,9 @@ export default function OnboardingWizard() {
     is_referral: "no",
     signature: "",
   })
+  const [creatingSendLink, setCreatingSendLink] = useState(false)
+  const [sendShareLink, setSendShareLink] = useState<string | null>(null)
+  const [showSendShare, setShowSendShare] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem("c-suite-onboarding")
@@ -88,6 +93,113 @@ export default function OnboardingWizard() {
     }
   }
 
+  /**
+   * Escape hatch: skip having the admin sign on behalf of the client.
+   * Mints an invitation row from the wizard's current form data and surfaces
+   * a unique `/onboard/<id>` link the admin can email straight to the
+   * client. The client signs themselves — no portal, no extra steps.
+   */
+  const sendToClientForSignature = async () => {
+    if (!formData.business_name || !formData.client_email) {
+      alert("Enter at least the business name and client email (step 2) before sending.")
+      return
+    }
+    setCreatingSendLink(true)
+    try {
+      const id = generateClientId()
+      const invitation: Invitation = {
+        id,
+        business_name: formData.business_name,
+        contact_name: formData.contact_name || undefined,
+        client_email: formData.client_email,
+        offer_type: formData.offer_type,
+        setup_fee: formData.setup_fee,
+        monthly_fee: formData.monthly_fee,
+        custom_services: formData.custom_services || undefined,
+        special_notes: formData.special_notes || undefined,
+        is_referral: formData.is_referral,
+        referral_name: formData.is_referral === "yes" ? formData.referral_name : undefined,
+        created_at: new Date().toISOString(),
+        status: "pending",
+      }
+      await saveInvitation(invitation)
+      const url = `${window.location.origin}/onboard/${id}`
+      setSendShareLink(url)
+      setShowSendShare(true)
+    } catch (e) {
+      alert(`Couldn't create the sign link: ${(e as Error).message}`)
+    } finally {
+      setCreatingSendLink(false)
+    }
+  }
+
+  const buildShareMessage = (url: string) => {
+    const greeting = formData.contact_name
+      ? `Hi ${formData.contact_name},`
+      : `Hi ${formData.business_name || "there"},`
+    const subject = `Your Orage AI Agency agreement is ready to sign`
+    const body = `${greeting}
+
+Your agreement is ready — click the link below to review and sign. It takes about a minute.
+
+${url}
+
+After you sign, you'll get your client portal login and a short onboarding intake to get your agents built.
+
+— Orage AI Agency
+team@orage.agency`
+    return { subject, body }
+  }
+
+  const copyShareLink = () => {
+    if (!sendShareLink) return
+    navigator.clipboard.writeText(sendShareLink)
+    alert("Link copied to clipboard")
+  }
+
+  const copyShareMessage = () => {
+    if (!sendShareLink) return
+    const { body } = buildShareMessage(sendShareLink)
+    navigator.clipboard.writeText(body)
+    alert("Message copied to clipboard — paste it into any email or text.")
+  }
+
+  const openShareInEmail = () => {
+    if (!sendShareLink) return
+    const { subject, body } = buildShareMessage(sendShareLink)
+    const params = new URLSearchParams()
+    params.set("subject", subject)
+    params.set("body", body)
+    window.location.href = `mailto:${encodeURIComponent(formData.client_email || "")}?${params.toString()}`
+  }
+
+  const downloadShareEml = () => {
+    if (!sendShareLink) return
+    const { subject, body } = buildShareMessage(sendShareLink)
+    const safe = (formData.business_name || "client").replace(/[^a-z0-9-_]+/gi, "_")
+    const headers = [
+      `From: team@orage.agency`,
+      formData.client_email ? `To: ${formData.client_email}` : null,
+      `Subject: ${subject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: text/plain; charset=UTF-8`,
+      `Content-Transfer-Encoding: 8bit`,
+      `X-Orage-Sign-Link: ${sendShareLink}`,
+    ]
+      .filter(Boolean)
+      .join("\r\n")
+    const eml = `${headers}\r\n\r\n${body}\r\n`
+    const blob = new Blob([eml], { type: "message/rfc822" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `Orage_Invitation_${safe}.eml`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="min-h-screen bg-orage-black py-8 px-4">
       <div className="max-w-5xl mx-auto">
@@ -102,7 +214,23 @@ export default function OnboardingWizard() {
           <p className="font-body text-white/70 text-base md:text-lg">Executive Client Onboarding Portal</p>
         </div>
 
-        <div className="flex justify-end mb-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+          <div className="flex-1 bg-[#B68039]/15 border border-[#B68039]/40 rounded-lg px-4 py-3 flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex-1">
+              <p className="text-gold font-heading text-sm md:text-base">JUST WANT THEM TO SIGN?</p>
+              <p className="text-white/70 text-xs md:text-sm">
+                Skip filling in the wizard yourself — fill business name + client email (step 2), then send a one-click sign link.
+              </p>
+            </div>
+            <Button
+              onClick={sendToClientForSignature}
+              disabled={creatingSendLink}
+              className="gradient-button text-black font-semibold disabled:opacity-50"
+            >
+              <Send className="mr-2 h-4 w-4" />
+              {creatingSendLink ? "Generating…" : "SEND FOR SIGNATURE"}
+            </Button>
+          </div>
           <Button
             onClick={() => router.push("/c-suite/admin")}
             variant="outline"
@@ -169,6 +297,68 @@ export default function OnboardingWizard() {
           </a>
         </div>
       </div>
+
+      {/* Send-for-signature share modal */}
+      {showSendShare && sendShareLink && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-orage-black border border-gold/30 rounded-lg p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="font-heading text-2xl text-gold">SEND FOR SIGNATURE</h3>
+              <button
+                onClick={() => {
+                  setShowSendShare(false)
+                  setSendShareLink(null)
+                }}
+                className="text-white/50 hover:text-white"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-white/70 text-sm mb-2">
+              Unique sign link for <span className="text-gold">{formData.client_email || formData.business_name}</span>. Send it however you want.
+            </p>
+            <div className="bg-black/40 border border-gold/30 rounded p-3 mb-4 break-all text-white/90 text-xs font-mono">
+              {sendShareLink}
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <Button
+                onClick={copyShareLink}
+                variant="outline"
+                className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              >
+                Copy link
+              </Button>
+              <Button
+                onClick={copyShareMessage}
+                variant="outline"
+                className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              >
+                Copy message
+              </Button>
+              <Button
+                onClick={downloadShareEml}
+                variant="outline"
+                className="bg-white/5 border-white/10 text-white hover:bg-white/10"
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                Download .eml
+              </Button>
+              <Button
+                onClick={openShareInEmail}
+                className="gradient-button text-black font-semibold"
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                Open in Email
+              </Button>
+            </div>
+            <p className="text-white/40 text-xs leading-relaxed">
+              <span className="text-gold">Open in Email</span> launches your default mail app with the message pre-filled.{" "}
+              <span className="text-gold">Download .eml</span> saves a draft you can drag into any mail client. No setup required.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

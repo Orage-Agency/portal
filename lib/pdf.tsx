@@ -10,6 +10,41 @@ export const InvoiceTemplate = InvoiceTemplateDefault
 export const WelcomeTemplate = WelcomeTemplateDefault
 
 /**
+ * Walk all <img> elements inside the container and replace any external src
+ * (http/https) with a base64 data URI. This eliminates the most common
+ * html2canvas failure mode: a cross-origin image taints the canvas, so
+ * canvas.toDataURL() throws a SecurityError ("Failed to generate PDF").
+ *
+ * Failures here are swallowed — if a single image can't be fetched
+ * (network blip, CORS), html2canvas will still try to render it directly.
+ */
+async function inlineExternalImages(container: HTMLElement): Promise<void> {
+  const imgs = Array.from(container.querySelectorAll("img")) as HTMLImageElement[]
+  await Promise.all(
+    imgs.map(async (img) => {
+      const src = img.getAttribute("src")
+      if (!src) return
+      if (src.startsWith("data:")) return
+      if (!/^https?:\/\//i.test(src)) return
+      try {
+        const r = await fetch(src, { mode: "cors", credentials: "omit" })
+        if (!r.ok) return
+        const blob = await r.blob()
+        const dataUri = await new Promise<string>((resolve, reject) => {
+          const fr = new FileReader()
+          fr.onload = () => resolve(String(fr.result))
+          fr.onerror = () => reject(fr.error)
+          fr.readAsDataURL(blob)
+        })
+        img.setAttribute("src", dataUri)
+      } catch {
+        // best-effort; html2canvas will fall through to its own loader
+      }
+    }),
+  )
+}
+
+/**
  * Render an HTML string into a PDF Blob using html2canvas + jsPDF.
  * Templates emit self-contained, light-mode HTML — we just frame it on A4 paper.
  */
@@ -37,6 +72,9 @@ async function renderHtmlToPdfBlob(htmlContent: string): Promise<Blob> {
   document.body.appendChild(container)
 
   try {
+    // Inline external images first so html2canvas doesn't taint the canvas.
+    await inlineExternalImages(container)
+
     // Wait for any web fonts referenced in the template to settle before snapshotting.
     if ("fonts" in document) {
       try {
@@ -49,8 +87,10 @@ async function renderHtmlToPdfBlob(htmlContent: string): Promise<Blob> {
     const canvas = await html2canvas(container, {
       scale: 2,
       useCORS: true,
+      allowTaint: true,
       backgroundColor: "#FFFFFF",
       logging: false,
+      imageTimeout: 15000,
     })
 
     const imgData = canvas.toDataURL("image/jpeg", 0.95)
@@ -108,7 +148,10 @@ export const generateAndDownloadPDF = async (
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   } catch (error) {
+    const msg = (error as Error)?.message || String(error) || "Unknown error"
     console.error("PDF generation failed:", error)
-    alert("Failed to generate PDF. Please try again.")
+    // Surface the real reason so we can diagnose at a glance instead of the
+    // useless "Please try again" message.
+    alert(`Failed to generate PDF: ${msg}`)
   }
 }
