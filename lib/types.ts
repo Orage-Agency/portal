@@ -81,6 +81,7 @@ export interface ClientInvitation {
   id: string;
   business_name: string;
   contact_name?: string; // Pre-filled by admin
+  client_email?: string; // Pre-filled by admin for sending the signing link
   offer_type: OfferType;
   setup_fee: number;
   monthly_fee: number;
@@ -89,6 +90,7 @@ export interface ClientInvitation {
   is_referral?: "yes" | "no"; // Admin-set referral status
   referral_name?: string; // Admin-set referral name
   created_at: string;
+  sent_at?: string; // When the invitation email was last dispatched
   status: 'pending' | 'completed';
   // Edited documents from admin review
   msa_content?: string;

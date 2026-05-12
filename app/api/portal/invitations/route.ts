@@ -9,6 +9,7 @@ interface InvitationRow {
   id: string
   business_name: string
   contact_name?: string | null
+  client_email?: string | null
   offer_type: string
   setup_fee: number | string
   monthly_fee: number | string
@@ -19,6 +20,7 @@ interface InvitationRow {
   status: string
   created_at: string
   updated_at?: string | null
+  sent_at?: string | null
 }
 
 export async function GET(req: Request) {
@@ -26,9 +28,9 @@ export async function GET(req: Request) {
   if (denied) return denied
   try {
     const rows = await sql()<InvitationRow[]>`
-      SELECT id, business_name, contact_name, offer_type, setup_fee, monthly_fee,
+      SELECT id, business_name, contact_name, client_email, offer_type, setup_fee, monthly_fee,
              custom_services, special_notes, is_referral, referral_name, status,
-             created_at, updated_at
+             created_at, updated_at, sent_at
       FROM invitations
       ORDER BY created_at DESC
     `
@@ -55,11 +57,11 @@ export async function POST(req: Request) {
     const now = new Date().toISOString()
     await sql()`
       INSERT INTO invitations (
-        id, business_name, contact_name, offer_type, setup_fee, monthly_fee,
+        id, business_name, contact_name, client_email, offer_type, setup_fee, monthly_fee,
         custom_services, special_notes, is_referral, referral_name, status,
         created_at, updated_at
       ) VALUES (
-        ${body.id}, ${body.business_name}, ${body.contact_name ?? null},
+        ${body.id}, ${body.business_name}, ${body.contact_name ?? null}, ${body.client_email ?? null},
         ${body.offer_type}, ${Number(body.setup_fee ?? 0)}, ${Number(body.monthly_fee ?? 0)},
         ${body.custom_services ?? null}, ${body.special_notes ?? null},
         ${body.is_referral ?? null}, ${body.referral_name ?? null},
@@ -68,6 +70,7 @@ export async function POST(req: Request) {
       ON CONFLICT (id) DO UPDATE SET
         business_name = EXCLUDED.business_name,
         contact_name = EXCLUDED.contact_name,
+        client_email = EXCLUDED.client_email,
         offer_type = EXCLUDED.offer_type,
         setup_fee = EXCLUDED.setup_fee,
         monthly_fee = EXCLUDED.monthly_fee,
