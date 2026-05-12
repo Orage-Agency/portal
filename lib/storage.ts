@@ -367,8 +367,19 @@ export async function clearClientSignature(
  */
 export async function createSignToken(
   clientId: string,
-  opts?: { doc_key?: "msa" | "welcome" | "invoice"; expires_in_days?: number },
-): Promise<{ token: string; url: string; expires_at: string | null }> {
+  opts?: {
+    doc_key?: "msa" | "welcome" | "invoice"
+    expires_in_days?: number
+    /** Default false — minting a token wipes the existing client signature
+     *  so the new link captures a fresh one. Set true to keep it. */
+    preserve_signature?: boolean
+  },
+): Promise<{
+  token: string
+  url: string
+  expires_at: string | null
+  cleared_existing_signature: boolean
+}> {
   const r = await fetch(
     `/api/portal/clients/${encodeURIComponent(clientId)}/sign-tokens`,
     {
@@ -381,7 +392,33 @@ export async function createSignToken(
   if (!r.ok) {
     throw new Error((data as { error?: string }).error || `Could not create sign link (${r.status})`)
   }
-  return data as { token: string; url: string; expires_at: string | null }
+  const result = data as {
+    token: string
+    url: string
+    expires_at: string | null
+    cleared_existing_signature?: boolean
+  }
+  // If the server cleared the old signature, mirror that into the local
+  // clients cache so the UI doesn't have to refetch.
+  if (result.cleared_existing_signature) {
+    const local = readLocal<Client>(LS.clients)
+    const idx = local.findIndex((c) => c.id === clientId)
+    if (idx >= 0) {
+      local[idx] = {
+        ...local[idx],
+        client_signature: undefined,
+        signed_at: undefined,
+        updated_at: new Date().toISOString(),
+      }
+      writeLocal(LS.clients, local)
+    }
+  }
+  return {
+    token: result.token,
+    url: result.url,
+    expires_at: result.expires_at,
+    cleared_existing_signature: !!result.cleared_existing_signature,
+  }
 }
 
 export interface PublicTokenDocument {

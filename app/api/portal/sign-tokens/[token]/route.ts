@@ -15,6 +15,17 @@ export async function GET(
 ) {
   try {
     const { token } = await params
+    // Make sure the table exists even if the migration hasn't been run.
+    await sql()`CREATE TABLE IF NOT EXISTS public.sign_tokens (
+      token TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      doc_key TEXT DEFAULT 'msa',
+      signed_at TIMESTAMP,
+      signature TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      expires_at TIMESTAMP
+    )`
     const rows = await sql()<Array<{
       token: string
       client_id: string
