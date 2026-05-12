@@ -8,7 +8,7 @@ import { type OfferType, OFFER_DEFAULTS, type Invitation } from "@/lib/types"
 import Link from "next/link"
 import { Share2, Download, Trash2, Mail, CheckCircle2, FileDown } from "lucide-react"
 import { getInvitations, saveInvitation, deleteInvitation, sendInvitationEmail } from "@/lib/storage"
-import { generatePDFFromText } from "@/lib/pdf"
+import { generatePDFFromText, generateAndDownloadPDF } from "@/lib/pdf"
 import { MSATemplate, WelcomeTemplate, InvoiceTemplate } from "@/lib/templates"
 
 // Skip static generation - requires client-side auth and database access
@@ -213,19 +213,18 @@ export default function InvitationsPage() {
     })
   }
 
-  const downloadDocument = (content: string, filename: string) => {
-    // Templates emit branded HTML — save as a standalone .html file so it
-    // opens in a browser looking exactly like the in-app preview.
-    const wrapped = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${filename}</title><link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet"></head><body style="margin:0;background:#FFFFFF;">${content}</body></html>`
-    const blob = new Blob([wrapped], { type: "text/html;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const element = document.createElement("a")
-    element.href = url
-    element.download = filename.replace(/\.txt$/i, "") + ".html"
-    document.body.appendChild(element)
-    element.click()
-    document.body.removeChild(element)
-    URL.revokeObjectURL(url)
+  const downloadDocument = async (content: string, filename: string) => {
+    // Templates emit branded HTML — render into a real PDF using the same
+    // engine the rest of the app uses (jsPDF + html2canvas). The .txt /
+    // .html suffix on incoming filenames is stripped so the saved file is
+    // always foo.pdf.
+    const clean = filename.replace(/\.(txt|html?)$/i, "")
+    try {
+      await generateAndDownloadPDF(content, clean)
+    } catch (err) {
+      console.error("[invitations] PDF download failed:", err)
+      alert("Could not generate PDF. Please try again.")
+    }
   }
 
   const handleCancelReview = () => {
@@ -612,21 +611,21 @@ ${link}`
                 {/* Download Buttons */}
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => downloadDocument(editableMSA, `${businessName}_Agreement.txt`)}
+                    onClick={() => downloadDocument(editableMSA, `${businessName}_Agreement`)}
                     className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm"
                   >
                     <Download className="h-4 w-4" />
                     Download Agreement
                   </button>
                   <button
-                    onClick={() => downloadDocument(editableWelcome, `${businessName}_Welcome.txt`)}
+                    onClick={() => downloadDocument(editableWelcome, `${businessName}_Welcome`)}
                     className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm"
                   >
                     <Download className="h-4 w-4" />
                     Download Welcome
                   </button>
                   <button
-                    onClick={() => downloadDocument(editableInvoice, `${businessName}_Invoice.txt`)}
+                    onClick={() => downloadDocument(editableInvoice, `${businessName}_Invoice`)}
                     className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm"
                   >
                     <Download className="h-4 w-4" />
@@ -711,21 +710,21 @@ ${link}`
               {/* Download Buttons */}
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => downloadDocument(editableMSA, `${businessName}_Agreement.txt`)}
+                  onClick={() => downloadDocument(editableMSA, `${businessName}_Agreement`)}
                   className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm"
                 >
                   <Download className="h-4 w-4" />
                   Download Agreement
                 </button>
                 <button
-                  onClick={() => downloadDocument(editableWelcome, `${businessName}_Welcome.txt`)}
+                  onClick={() => downloadDocument(editableWelcome, `${businessName}_Welcome`)}
                   className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm"
                 >
                   <Download className="h-4 w-4" />
                   Download Welcome
                 </button>
                 <button
-                  onClick={() => downloadDocument(editableInvoice, `${businessName}_Invoice.txt`)}
+                  onClick={() => downloadDocument(editableInvoice, `${businessName}_Invoice`)}
                   className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all text-sm"
                 >
                   <Download className="h-4 w-4" />
