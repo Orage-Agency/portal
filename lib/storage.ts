@@ -50,10 +50,6 @@ export interface Invitation {
   msa_content?: string
   welcome_content?: string
   invoice_content?: string
-  // Generated PDFs from edited content (stored in localStorage only).
-  msa_pdf_data?: string
-  welcome_pdf_data?: string
-  invoice_pdf_data?: string
 }
 
 export interface Notification {
@@ -182,7 +178,8 @@ export async function saveClientLogin(login: ClientLogin): Promise<void> {
 /* ────────────────────────  INVITATIONS  ──────────────────────────── */
 
 export async function getInvitations(): Promise<Invitation[]> {
-  // Large fields (msa_content / pdf_data) live in localStorage only — merge in.
+  // Large content fields (msa_content / welcome_content / invoice_content)
+  // live in localStorage only — merge them back onto the server response.
   const local = readLocal<Invitation>(LS.invitations)
   try {
     const r = await fetch("/api/portal/invitations", { headers: adminHeaders(), cache: "no-store" })
@@ -195,9 +192,6 @@ export async function getInvitations(): Promise<Invitation[]> {
         msa_content: l?.msa_content,
         welcome_content: l?.welcome_content,
         invoice_content: l?.invoice_content,
-        msa_pdf_data: l?.msa_pdf_data,
-        welcome_pdf_data: l?.welcome_pdf_data,
-        invoice_pdf_data: l?.invoice_pdf_data,
       }
     })
     // Include invitations created locally that the server hasn't seen yet.
@@ -228,9 +222,6 @@ export async function getInvitationById(id: string): Promise<Invitation | null> 
       msa_content: local?.msa_content,
       welcome_content: local?.welcome_content,
       invoice_content: local?.invoice_content,
-      msa_pdf_data: local?.msa_pdf_data,
-      welcome_pdf_data: local?.welcome_pdf_data,
-      invoice_pdf_data: local?.invoice_pdf_data,
     }
   } catch (err) {
     console.warn("[storage] getInvitationById fell back to localStorage:", err)
@@ -247,18 +238,15 @@ export async function saveInvitation(invitation: Invitation): Promise<void> {
   else local.push(full)
   writeLocal(LS.invitations, local)
 
-  // Send only metadata to the server. Strip large content + PDFs to keep
+  // Send only metadata to the server. Strip the large HTML content to keep
   // the row small and the request fast.
   const {
     msa_content: _msa,
     welcome_content: _welcome,
     invoice_content: _invoice,
-    msa_pdf_data: _msaPdf,
-    welcome_pdf_data: _welcomePdf,
-    invoice_pdf_data: _invoicePdf,
     ...metadata
   } = invitation
-  void [_msa, _welcome, _invoice, _msaPdf, _welcomePdf, _invoicePdf]
+  void [_msa, _welcome, _invoice]
   const r = await fetch("/api/portal/invitations", {
     method: "POST",
     headers: adminHeaders(),

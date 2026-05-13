@@ -8,7 +8,7 @@ import { type OfferType, OFFER_DEFAULTS, type Invitation } from "@/lib/types"
 import Link from "next/link"
 import { Share2, Download, Trash2, Mail, CheckCircle2, FileDown } from "lucide-react"
 import { getInvitations, saveInvitation, deleteInvitation, sendInvitationEmail } from "@/lib/storage"
-import { generatePDFFromText, generateAndDownloadPDF } from "@/lib/pdf"
+import { generateAndDownloadPDF } from "@/lib/pdf"
 import { MSATemplate, WelcomeTemplate, InvoiceTemplate } from "@/lib/templates"
 
 // Skip static generation - requires client-side auth and database access
@@ -107,110 +107,71 @@ export default function InvitationsPage() {
   }
 
   const handleConfirmInvitation = async () => {
-    console.log("[v0] Starting PDF generation from edited content")
-    console.log("[v0] editableMSA length:", editableMSA.length)
-    console.log("[v0] editableWelcome length:", editableWelcome.length)
-    console.log("[v0] editableInvoice length:", editableInvoice.length)
-    
-    try {
-      // Validate that we have content to generate PDFs from
-      if (!editableMSA || !editableWelcome || !editableInvoice) {
-        alert("Please ensure all documents have content before confirming.")
-        return
-      }
-
-      // Generate PDFs - each wrapped in its own try/catch so one failure doesn't block all
-      let msaPdfBase64 = ""
-      let welcomePdfBase64 = ""
-      let invoicePdfBase64 = ""
-      
-      try {
-        const msaPdfBlob = await generatePDFFromText(editableMSA, `${businessName}_MSA`)
-        msaPdfBase64 = await blobToBase64(msaPdfBlob)
-      } catch (e) {
-        console.error("[v0] MSA PDF generation failed:", e)
-      }
-      
-      try {
-        const welcomePdfBlob = await generatePDFFromText(editableWelcome, `${businessName}_Welcome`)
-        welcomePdfBase64 = await blobToBase64(welcomePdfBlob)
-      } catch (e) {
-        console.error("[v0] Welcome PDF generation failed:", e)
-      }
-      
-      try {
-        const invoicePdfBlob = await generatePDFFromText(editableInvoice, `${businessName}_Invoice`)
-        invoicePdfBase64 = await blobToBase64(invoicePdfBlob)
-      } catch (e) {
-        console.error("[v0] Invoice PDF generation failed:", e)
-      }
-
-      const invitation: Invitation = {
-        id: generateClientId(),
-        business_name: businessName,
-        contact_name: contactName || undefined,
-        client_email: clientEmail.trim() || undefined,
-        offer_type: offerType,
-        setup_fee: setupFee,
-        monthly_fee: monthlyFee,
-        custom_services: customServices || undefined,
-        special_notes: editableNotes || undefined,
-        is_referral: isReferral,
-        referral_name: isReferral === "yes" ? referralName : undefined,
-        created_at: new Date().toISOString(),
-        status: "pending",
-        // Store edited content
-        msa_content: editableMSA,
-        welcome_content: editableWelcome,
-        invoice_content: editableInvoice,
-        // Store generated PDFs (may be empty if generation failed)
-        msa_pdf_data: msaPdfBase64 || undefined,
-        welcome_pdf_data: welcomePdfBase64 || undefined,
-        invoice_pdf_data: invoicePdfBase64 || undefined,
-      }
-
-      setInvitations((prev) => [invitation, ...prev])
-
-      await saveInvitation(invitation)
-      console.log("[v0] Invitation saved successfully")
-
-      const link = `${window.location.origin}/onboard/${invitation.id}`
-      setGeneratedLink(link)
-
-      // Reset form and review step
-      setBusinessName("")
-      setContactName("")
-      setClientEmail("")
-      setIsReferral("no")
-      setReferralName("")
-      setCustomServices("")
-      setSpecialNotes("")
-      setEditableNotes("")
-      setEditableMSA("")
-      setEditableWelcome("")
-      setEditableInvoice("")
-      setReviewStep(false)
-      setReviewSubStep("edit")
-
-      setTimeout(async () => {
-        await loadInvitations()
-      }, 1500)
-    } catch (error) {
-      console.error("[v0] Error generating PDFs:", error)
-      alert("Error generating PDFs. Please try again.")
+    // Validate that we have edited content for every document before saving.
+    if (!editableMSA || !editableWelcome || !editableInvoice) {
+      alert("Please ensure all documents have content before confirming.")
+      return
     }
-  }
 
-  const blobToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64 = reader.result as string
-        resolve(base64.split(",")[1]) // Remove data:application/pdf;base64, prefix
-      }
-      reader.onerror = reject
-      reader.readAsDataURL(blob)
-    })
+    // PDFs are regenerated on demand from the stored HTML content — we don't
+    // pre-bake & cache base64 blobs in localStorage anymore. Three multi-page
+    // PDFs as base64 routinely exceed localStorage's ~5MB origin quota, which
+    // caused saveInvitation to fail silently and the row to vanish on the
+    // next refresh (the symptom users saw as "the invite is not even there").
+    const invitation: Invitation = {
+      id: generateClientId(),
+      business_name: businessName,
+      contact_name: contactName || undefined,
+      client_email: clientEmail.trim() || undefined,
+      offer_type: offerType,
+      setup_fee: setupFee,
+      monthly_fee: monthlyFee,
+      custom_services: customServices || undefined,
+      special_notes: editableNotes || undefined,
+      is_referral: isReferral,
+      referral_name: isReferral === "yes" ? referralName : undefined,
+      created_at: new Date().toISOString(),
+      status: "pending",
+      msa_content: editableMSA,
+      welcome_content: editableWelcome,
+      invoice_content: editableInvoice,
+    }
+
+    // Optimistic UI update so the row appears immediately.
+    setInvitations((prev) => [invitation, ...prev])
+
+    try {
+      await saveInvitation(invitation)
+    } catch (error) {
+      const msg = (error as Error)?.message || String(error) || "Unknown error"
+      console.error("[invitations] saveInvitation failed:", error)
+      // Roll back the optimistic insert so the user isn't fooled into thinking
+      // the invite landed when it didn't.
+      setInvitations((prev) => prev.filter((i) => i.id !== invitation.id))
+      alert(`Could not save invitation: ${msg}`)
+      return
+    }
+
+    const link = `${window.location.origin}/onboard/${invitation.id}`
+    setGeneratedLink(link)
+
+    setBusinessName("")
+    setContactName("")
+    setClientEmail("")
+    setIsReferral("no")
+    setReferralName("")
+    setCustomServices("")
+    setSpecialNotes("")
+    setEditableNotes("")
+    setEditableMSA("")
+    setEditableWelcome("")
+    setEditableInvoice("")
+    setReviewStep(false)
+    setReviewSubStep("edit")
+
+    setTimeout(async () => {
+      await loadInvitations()
+    }, 1500)
   }
 
   const downloadDocument = async (content: string, filename: string) => {

@@ -96,10 +96,6 @@ export interface ClientInvitation {
   msa_content?: string;
   welcome_content?: string;
   invoice_content?: string;
-  // Generated PDFs from edited content
-  msa_pdf_data?: string; // Base64 encoded PDF
-  welcome_pdf_data?: string; // Base64 encoded PDF
-  invoice_pdf_data?: string; // Base64 encoded PDF
 }
 
 // Alias for backwards compatibility

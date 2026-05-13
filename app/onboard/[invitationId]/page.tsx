@@ -115,24 +115,6 @@ export default function ClientOnboardingPage({ params }: { params: Promise<{ inv
   }
 
   const downloadMSAPreview = async () => {
-    if (invitation?.msa_pdf_data) {
-      const byteCharacters = atob(invitation.msa_pdf_data)
-      const byteNumbers = new Array(byteCharacters.length)
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i)
-      }
-      const byteArray = new Uint8Array(byteNumbers)
-      const blob = new Blob([byteArray], { type: "application/pdf" })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `MSA_Agreement_${invitation?.business_name || "Document"}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-      return
-    }
     const msaContent = getMSAContent()
     await generateAndDownloadPDF(msaContent, `MSA_Preview_${invitation?.business_name || "Document"}`)
   }
