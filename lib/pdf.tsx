@@ -46,43 +46,89 @@ async function inlineExternalImages(container: HTMLElement): Promise<void> {
 
 /**
  * Render an HTML string into a PDF Blob using html2canvas + jsPDF.
- * Templates emit self-contained, light-mode HTML — we just frame it on A4 paper.
+ *
+ * The template HTML is mounted inside a same-origin iframe so it renders in
+ * isolation from the host page's stylesheet. This matters because the app
+ * uses Tailwind v4, whose tokens are defined with `oklch()` — a color
+ * function html2canvas v1 cannot parse. Inheriting those variables (via
+ * `:root` / `*` rules) would crash the snapshot with
+ * "Attempting to parse an unsupported color function 'oklch'".
  */
 async function renderHtmlToPdfBlob(htmlContent: string): Promise<Blob> {
-  const container = document.createElement("div")
-  container.style.position = "absolute"
-  container.style.left = "-9999px"
-  container.style.top = "0"
-  container.style.width = "210mm" // A4 width
-  container.style.minHeight = "297mm" // A4 height
-  container.style.backgroundColor = "#FFFFFF"
-  container.style.color = "#2C1A00"
-  container.style.fontFamily =
-    "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
-  container.style.fontSize = "13px"
-  container.style.lineHeight = "1.65"
-  container.style.boxSizing = "border-box"
-  container.style.padding = "0"
+  const iframe = document.createElement("iframe")
+  iframe.setAttribute("aria-hidden", "true")
+  iframe.style.position = "fixed"
+  iframe.style.left = "-99999px"
+  iframe.style.top = "0"
+  iframe.style.width = "210mm"
+  iframe.style.height = "297mm"
+  iframe.style.border = "0"
+  iframe.style.pointerEvents = "none"
+  iframe.style.opacity = "0"
 
-  container.innerHTML = `
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet" />
-    <div style="background:#FFFFFF;">${htmlContent}</div>
-  `
+  document.body.appendChild(iframe)
 
-  document.body.appendChild(container)
+  const doc = iframe.contentDocument
+  const win = iframe.contentWindow
+  if (!doc || !win) {
+    document.body.removeChild(iframe)
+    throw new Error("Unable to initialize PDF rendering frame")
+  }
+
+  // Build a self-contained document. No <link> back to the host page's CSS,
+  // so no oklch variables leak in. Fonts are loaded directly from Google.
+  doc.open()
+  doc.write(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #FFFFFF;
+        color: #2C1A00;
+        font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        font-size: 13px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      #pdf-root {
+        width: 210mm;
+        min-height: 297mm;
+        background: #FFFFFF;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body><div id="pdf-root">${htmlContent}</div></body>
+</html>`)
+  doc.close()
 
   try {
-    // Inline external images first so html2canvas doesn't taint the canvas.
+    const container = doc.getElementById("pdf-root") as HTMLElement | null
+    if (!container) throw new Error("PDF root element missing")
+
+    // Inline external images so html2canvas doesn't taint the canvas.
     await inlineExternalImages(container)
 
-    // Wait for any web fonts referenced in the template to settle before snapshotting.
-    if ("fonts" in document) {
+    // Wait for fonts to settle inside the iframe.
+    const iframeDoc = doc as Document & { fonts?: { ready: Promise<unknown> } }
+    if (iframeDoc.fonts && iframeDoc.fonts.ready) {
       try {
-        await (document as Document & { fonts: { ready: Promise<unknown> } }).fonts.ready
+        await iframeDoc.fonts.ready
       } catch {
-        // ignore — fall back to system fonts via the template's fallback chain
+        // fall back to system fonts via the template's fallback chain
       }
     }
+
+    // Give the iframe one paint cycle so layout settles.
+    await new Promise<void>((resolve) => {
+      win.requestAnimationFrame(() => resolve())
+    })
 
     const canvas = await html2canvas(container, {
       scale: 2,
@@ -91,6 +137,8 @@ async function renderHtmlToPdfBlob(htmlContent: string): Promise<Blob> {
       backgroundColor: "#FFFFFF",
       logging: false,
       imageTimeout: 15000,
+      windowWidth: container.scrollWidth,
+      windowHeight: container.scrollHeight,
     })
 
     const imgData = canvas.toDataURL("image/jpeg", 0.95)
@@ -114,7 +162,7 @@ async function renderHtmlToPdfBlob(htmlContent: string): Promise<Blob> {
 
     return pdf.output("blob")
   } finally {
-    document.body.removeChild(container)
+    document.body.removeChild(iframe)
   }
 }
 
