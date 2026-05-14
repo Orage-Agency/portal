@@ -57,12 +57,17 @@ export async function POST(req: Request) {
     if (!body.invitation_id) {
       return NextResponse.json({ error: "invitation_id is required" }, { status: 400 })
     }
-    // Verify invitation exists.
+    // Verify the id matches a real invitation OR client (the link is the secret).
     const inv = await sql()<Array<{ id: string }>>`
       SELECT id FROM invitations WHERE id = ${body.invitation_id} LIMIT 1
     `
     if (!inv || inv.length === 0) {
-      return NextResponse.json({ error: "Invalid invitation" }, { status: 403 })
+      const cli = await sql()<Array<{ id: string }>>`
+        SELECT id FROM clients WHERE id = ${body.invitation_id} LIMIT 1
+      `
+      if (!cli || cli.length === 0) {
+        return NextResponse.json({ error: "Invalid invitation" }, { status: 403 })
+      }
     }
     const now = new Date().toISOString()
     const id = body.id || `INTAKE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`

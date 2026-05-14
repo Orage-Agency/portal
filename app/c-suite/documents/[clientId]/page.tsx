@@ -583,6 +583,18 @@ team@orage.agency`
               {mintingToken ? "Generating…" : "Send for Signature"}
             </Button>
             <Button
+              onClick={() => {
+                const link = `${window.location.origin}/onboard/${client.id}/intake`
+                const text = `Quick setup questions for your Orage AI agent — about 5 minutes:\n\n${link}`
+                navigator.clipboard.writeText(text)
+                toast({ title: "Intake link copied", description: "Paste it into iMessage, WhatsApp, or email." })
+              }}
+              className="flex-1 md:flex-none bg-white/10 hover:bg-white/20 text-white border border-gold/30"
+            >
+              <Send className="mr-2 h-4 w-4" />
+              Send Intake Questions
+            </Button>
+            <Button
               onClick={() => router.push("/c-suite/admin")}
               variant="outline"
               className="flex-1 md:flex-none bg-white/5 border-white/10 text-white hover:bg-white/10"
