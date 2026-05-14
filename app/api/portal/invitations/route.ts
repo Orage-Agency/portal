@@ -96,6 +96,11 @@ export async function DELETE(req: Request) {
   try {
     const id = new URL(req.url).searchParams.get("id")
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 })
+    // Cascade: drop the intake answers + uploaded pricing docs that share this id.
+    // Audio in Blob storage is left behind on purpose — recording is the source
+    // of truth for the client and orphaned blobs are cheap.
+    try { await sql()`DELETE FROM client_intakes WHERE invitation_id = ${id}` } catch {}
+    try { await sql()`DELETE FROM intake_uploads WHERE invitation_id = ${id}` } catch {}
     await sql()`DELETE FROM invitations WHERE id = ${id}`
     return NextResponse.json({ ok: true })
   } catch (err) {

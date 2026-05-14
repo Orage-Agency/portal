@@ -116,6 +116,14 @@ export async function DELETE(req: Request) {
   try {
     const id = new URL(req.url).searchParams.get("id")
     if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 })
+    // Cascade everything tied to this client id (signed clients use the same
+    // id as the source invitation in this app, so the intake/uploads tables
+    // key off the same string).
+    try { await sql()`DELETE FROM client_intakes WHERE invitation_id = ${id}` } catch {}
+    try { await sql()`DELETE FROM intake_uploads WHERE invitation_id = ${id}` } catch {}
+    try { await sql()`DELETE FROM client_logins WHERE client_id = ${id}` } catch {}
+    try { await sql()`DELETE FROM sign_tokens WHERE client_id = ${id}` } catch {}
+    try { await sql()`DELETE FROM notifications WHERE client_id = ${id}` } catch {}
     await sql()`DELETE FROM clients WHERE id = ${id}`
     return NextResponse.json({ ok: true })
   } catch (err) {

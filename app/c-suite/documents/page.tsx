@@ -7,6 +7,7 @@ import { Trash2, ArrowLeft, Search, FolderOpen, CheckSquare } from "lucide-react
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { getClients, deleteClient as deleteClientFromStorage } from "@/lib/storage"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 
 // Skip static generation - requires client-side auth and database access
 export const dynamic = "force-dynamic"
@@ -28,6 +29,10 @@ export default function DocumentsPortalPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectMode, setSelectMode] = useState(false)
   const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set())
+  const [deleteRowFor, setDeleteRowFor] = useState<ClientFolder | null>(null)
+  const [deletingRow, setDeletingRow] = useState(false)
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false)
+  const [deletingBulk, setDeletingBulk] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -140,35 +145,54 @@ export default function DocumentsPortalPage() {
     }
   }
 
-  const deleteClient = async (clientId: string) => {
-    if (confirm(`Delete all documents for client with ID ${clientId}? This cannot be undone.`)) {
-      await deleteClientFromStorage(clientId)
-      const updated = await getClients()
-      setClients(updated as any)
-      setFilteredClients(updated as any)
+  async function reloadClients() {
+    const data = await getClients()
+    const mapped = data.map((client) => ({
+      id: client.id,
+      clientName: client.business_name,
+      contactName: client.name,
+      dateCreated: client.created_at || new Date().toISOString(),
+      documents: {
+        msa: client.msa_content || "",
+        invoice: client.invoice_content || "",
+        welcome: client.welcome_content || "",
+      },
+    }))
+    setClients(mapped)
+    setFilteredClients(mapped)
+  }
+
+  const handleDeleteRow = async () => {
+    if (!deleteRowFor) return
+    setDeletingRow(true)
+    try {
+      await deleteClientFromStorage(deleteRowFor.id)
+      await reloadClients()
       toast({
         title: "Deleted",
-        description: `Client with ID ${clientId}'s documents have been deleted`,
+        description: `${deleteRowFor.clientName}'s documents have been deleted`,
       })
+      setDeleteRowFor(null)
+    } finally {
+      setDeletingRow(false)
     }
   }
 
-  const deleteSelected = async () => {
+  const handleDeleteBulk = async () => {
     if (selectedClients.size === 0) return
-
-    if (confirm(`Delete ${selectedClients.size} client(s) and all their documents? This cannot be undone.`)) {
+    setDeletingBulk(true)
+    try {
       for (const clientId of selectedClients) {
         await deleteClientFromStorage(clientId)
       }
-      const updated = await getClients()
-      setClients(updated as any)
-      setFilteredClients(updated as any)
+      await reloadClients()
+      const count = selectedClients.size
       setSelectedClients(new Set())
       setSelectMode(false)
-      toast({
-        title: "Deleted",
-        description: `${selectedClients.size} client(s) deleted`,
-      })
+      setShowBulkConfirm(false)
+      toast({ title: "Deleted", description: `${count} client(s) deleted` })
+    } finally {
+      setDeletingBulk(false)
     }
   }
 
@@ -252,7 +276,7 @@ export default function DocumentsPortalPage() {
               <h2 className="font-heading text-2xl text-gold">CLIENT FOLDERS</h2>
               {selectMode && selectedClients.size > 0 && (
                 <Button
-                  onClick={deleteSelected}
+                  onClick={() => setShowBulkConfirm(true)}
                   variant="outline"
                   className="w-full md:w-auto bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20"
                 >
@@ -282,38 +306,91 @@ export default function DocumentsPortalPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredClients.map((client) => (
-                  <button
+                  <div
                     key={client.id}
-                    onClick={() => handleClientClick(client.id)}
-                    className={`p-5 rounded-lg text-left transition-all ${
+                    className={`relative p-5 rounded-lg transition-all ${
                       selectedClients.has(client.id)
                         ? "bg-[#B68039]/20 border-2 border-[#B68039]"
-                        : "bg-white/5 border-2 border-white/10 hover:border-white/30 hover:scale-105"
+                        : "bg-white/5 border-2 border-white/10 hover:border-white/30"
                     }`}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <FolderOpen
-                        className={`h-10 w-10 transition-transform ${
-                          selectedClients.has(client.id) ? "text-[#B68039]" : "text-[#B68039]/70"
-                        }`}
-                      />
-                      {selectMode && selectedClients.has(client.id) && (
-                        <CheckSquare className="h-5 w-5 text-[#B68039]" />
-                      )}
-                    </div>
-                    <h3 className="font-body font-bold text-white mb-1 text-lg">{client.clientName}</h3>
-                    <p className="text-white/60 text-sm mb-2">{client.contactName}</p>
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
-                      <p className="text-white/40 text-xs">3 documents</p>
-                      <p className="text-white/40 text-xs">{new Date(client.dateCreated).toLocaleDateString()}</p>
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteRowFor(client)
+                      }}
+                      className="absolute top-2.5 right-2.5 p-1.5 rounded text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition opacity-0 group-hover:opacity-100"
+                      style={{ opacity: 1 }}
+                      title="Delete client (type-to-confirm)"
+                      aria-label="Delete client"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleClientClick(client.id)}
+                      className="block w-full text-left"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <FolderOpen
+                          className={`h-10 w-10 transition-transform ${
+                            selectedClients.has(client.id) ? "text-[#B68039]" : "text-[#B68039]/70"
+                          }`}
+                        />
+                        {selectMode && selectedClients.has(client.id) && (
+                          <CheckSquare className="h-5 w-5 text-[#B68039]" />
+                        )}
+                      </div>
+                      <h3 className="font-body font-bold text-white mb-1 text-lg">{client.clientName}</h3>
+                      <p className="text-white/60 text-sm mb-2">{client.contactName}</p>
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
+                        <p className="text-white/40 text-xs">3 documents</p>
+                        <p className="text-white/40 text-xs">{new Date(client.dateCreated).toLocaleDateString()}</p>
+                      </div>
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <ConfirmDeleteDialog
+        open={deleteRowFor !== null}
+        onOpenChange={(v) => !v && setDeleteRowFor(null)}
+        title="Delete client + all documents"
+        description={
+          <>
+            Permanently removes <strong className="text-gold">{deleteRowFor?.clientName}</strong>,
+            their MSA / invoice / welcome docs, and any voice intake or
+            uploads tied to them. Type the business name below to confirm.
+          </>
+        }
+        confirmText={deleteRowFor?.clientName ?? ""}
+        confirmHint="Type the business name to confirm"
+        loading={deletingRow}
+        onConfirm={handleDeleteRow}
+      />
+
+      <ConfirmDeleteDialog
+        open={showBulkConfirm}
+        onOpenChange={setShowBulkConfirm}
+        title={`Delete ${selectedClients.size} client${selectedClients.size !== 1 ? "s" : ""}`}
+        description={
+          <>
+            This permanently removes the selected clients and every document,
+            voice intake, and upload tied to them. Type{" "}
+            <span className="text-gold font-mono">DELETE</span> below to confirm.
+          </>
+        }
+        confirmText="DELETE"
+        confirmHint="Type DELETE to confirm"
+        confirmLabel={`Delete ${selectedClients.size}`}
+        loading={deletingBulk}
+        onConfirm={handleDeleteBulk}
+      />
     </div>
   )
 }

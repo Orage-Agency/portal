@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import MSATemplate from "@/components/c-suite/templates/MSATemplate"
 import {
   getClients,
@@ -69,6 +70,8 @@ export default function ClientDocumentsPage() {
   const [mintingToken, setMintingToken] = useState(false)
   const [clearingSig, setClearingSig] = useState<"client" | "agency" | null>(null)
   const [showIntakeLink, setShowIntakeLink] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
   const clientId = params.clientId as string
@@ -237,23 +240,24 @@ If you have any questions, feel free to reach out to our team.`
 
   const deleteClient = async () => {
     if (!client) return
-
-    if (confirm(`Delete all documents for ${client.business_name}? This cannot be undone.`)) {
-      try {
-        await saveClient({ id: client.id, deleted: true })
-        toast({
-          title: "Deleted",
-          description: `${client.business_name}'s documents have been deleted`,
-        })
-        router.push("/c-suite/documents")
-      } catch (error) {
-        console.error("[v0] Error deleting client:", error)
-        toast({
-          title: "Error",
-          description: "Failed to delete client data",
-          variant: "destructive",
-        })
-      }
+    setIsDeleting(true)
+    try {
+      await saveClient({ id: client.id, deleted: true })
+      toast({
+        title: "Deleted",
+        description: `${client.business_name}'s documents have been deleted`,
+      })
+      router.push("/c-suite/documents")
+    } catch (error) {
+      console.error("[v0] Error deleting client:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete client data",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
     }
   }
 
@@ -606,11 +610,11 @@ team@orage.agency`
               Dashboard
             </Button>
             <Button
-              onClick={deleteClient}
+              onClick={() => setShowDeleteConfirm(true)}
               variant="outline"
               className="flex-1 md:flex-none bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20"
             >
-              <ArrowLeft className="mr-2 h-4 w-4" />
+              <Trash2 className="mr-2 h-4 w-4" />
               Delete
             </Button>
           </div>
@@ -1069,6 +1073,23 @@ Login Credentials:
         invitationId={client?.id ?? ""}
         contactName={client?.name}
         businessName={client?.business_name}
+      />
+
+      <ConfirmDeleteDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete client + all documents"
+        description={
+          <>
+            Permanently removes <strong className="text-gold">{client?.business_name}</strong>,
+            their MSA / invoice / welcome docs, and any voice intake or
+            uploads tied to them. Type the business name below to confirm.
+          </>
+        }
+        confirmText={client?.business_name ?? ""}
+        confirmHint="Type the business name to confirm"
+        loading={isDeleting}
+        onConfirm={deleteClient}
       />
     </div>
   )

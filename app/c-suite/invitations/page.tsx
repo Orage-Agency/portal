@@ -15,6 +15,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { getInvitations, saveInvitation, deleteInvitation, sendInvitationEmail } from "@/lib/storage"
 import { generatePDFFromText, generateAndDownloadPDF } from "@/lib/pdf"
 import { MSATemplate, WelcomeTemplate, InvoiceTemplate } from "@/lib/templates"
@@ -26,6 +27,9 @@ export default function InvitationsPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [intakeLinkFor, setIntakeLinkFor] = useState<Invitation | null>(null)
+  const [deleteRowFor, setDeleteRowFor] = useState<Invitation | null>(null)
+  const [deletingRow, setDeletingRow] = useState(false)
+  const [deletingBulk, setDeletingBulk] = useState(false)
   const [businessName, setBusinessName] = useState("")
   const [contactName, setContactName] = useState("")
   const [clientEmail, setClientEmail] = useState("")
@@ -267,25 +271,35 @@ export default function InvitationsPage() {
   }
 
   const handleDeleteSelected = async () => {
-    if (selectedInvitations.size === 0) {
-      alert("Please select at least one invitation to delete")
-      return
-    }
-
-    console.log("[v0] Deleting invitations:", Array.from(selectedInvitations))
-
+    if (selectedInvitations.size === 0) return
+    setDeletingBulk(true)
     try {
       for (const id of selectedInvitations) {
         await deleteInvitation(id)
       }
-
-      console.log("[v0] Invitations deleted successfully")
       setSelectedInvitations(new Set())
       setShowDeleteConfirm(false)
       await loadInvitations()
     } catch (error) {
       console.error("[v0] Error deleting invitations:", error)
       alert("Error deleting invitations. Please try again.")
+    } finally {
+      setDeletingBulk(false)
+    }
+  }
+
+  const handleDeleteRow = async () => {
+    if (!deleteRowFor) return
+    setDeletingRow(true)
+    try {
+      await deleteInvitation(deleteRowFor.id)
+      setDeleteRowFor(null)
+      await loadInvitations()
+    } catch (error) {
+      console.error("[v0] Error deleting invitation:", error)
+      alert("Error deleting. Please try again.")
+    } finally {
+      setDeletingRow(false)
     }
   }
 
@@ -849,30 +863,23 @@ ${generatedLink}`}
             )}
           </div>
 
-          {showDeleteConfirm && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-[#0a0a0a] border border-red-500/50 rounded-lg p-6 max-w-md w-full">
-                <h3 className="font-heading text-xl text-red-400 mb-3">Confirm Deletion</h3>
-                <p className="text-white/70 mb-6">
-                  Are you sure you want to delete {selectedInvitations.size} invitation{selectedInvitations.size !== 1 ? "s" : ""}? This action cannot be undone.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleDeleteSelected}
-                    className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded transition-all font-bold"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <ConfirmDeleteDialog
+            open={showDeleteConfirm}
+            onOpenChange={setShowDeleteConfirm}
+            title={`Delete ${selectedInvitations.size} invitation${selectedInvitations.size !== 1 ? "s" : ""}`}
+            description={
+              <>
+                This permanently removes the selected invitations and their
+                voice intakes. Type <span className="text-gold font-mono">DELETE</span>{" "}
+                below to confirm.
+              </>
+            }
+            confirmText="DELETE"
+            confirmHint="Type DELETE to confirm"
+            confirmLabel={`Delete ${selectedInvitations.size}`}
+            loading={deletingBulk}
+            onConfirm={handleDeleteSelected}
+          />
 
           {invitations.filter((inv) => inv.status === "pending").length === 0 ? (
             <p className="text-white/60">No pending invitations</p>
@@ -953,15 +960,25 @@ ${generatedLink}`}
                             <span>Open in Email</span>
                           </button>
                         </div>
-                        <button
-                          onClick={() => handleSendInvitation(inv)}
-                          disabled={sendingId === inv.id}
-                          className="px-3 py-1.5 bg-transparent hover:bg-white/5 disabled:opacity-50 text-white/50 hover:text-white/80 rounded transition-all text-[11px] flex items-center justify-center gap-1 whitespace-normal h-auto min-h-[28px] border border-white/10"
-                          title="Send via Gmail SMTP (requires GMAIL_APP_PASSWORD env var)"
-                        >
-                          <Mail className="h-3 w-3 flex-shrink-0 opacity-60" />
-                          <span>{sendingId === inv.id ? "Sending…" : inv.sent_at ? "Resend via Gmail" : "Send via Gmail"}</span>
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleSendInvitation(inv)}
+                            disabled={sendingId === inv.id}
+                            className="flex-1 px-3 py-1.5 bg-transparent hover:bg-white/5 disabled:opacity-50 text-white/50 hover:text-white/80 rounded transition-all text-[11px] flex items-center justify-center gap-1 whitespace-normal h-auto min-h-[28px] border border-white/10"
+                            title="Send via Gmail SMTP (requires GMAIL_APP_PASSWORD env var)"
+                          >
+                            <Mail className="h-3 w-3 flex-shrink-0 opacity-60" />
+                            <span>{sendingId === inv.id ? "Sending…" : inv.sent_at ? "Resend via Gmail" : "Send via Gmail"}</span>
+                          </button>
+                          <button
+                            onClick={() => setDeleteRowFor(inv)}
+                            className="px-3 py-1.5 bg-transparent hover:bg-red-500/10 text-red-400/70 hover:text-red-400 rounded transition-all text-[11px] flex items-center justify-center gap-1 whitespace-normal h-auto min-h-[28px] border border-red-500/20"
+                            title="Delete invitation (type-to-confirm)"
+                          >
+                            <Trash2 className="h-3 w-3 flex-shrink-0" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -999,6 +1016,14 @@ ${generatedLink}`}
                             <Link2 className="h-4 w-4 flex-shrink-0" />
                             <span>GET INTAKE LINK</span>
                           </button>
+                          <button
+                            onClick={() => setDeleteRowFor(inv)}
+                            className="w-full sm:w-auto px-3 py-2 bg-transparent hover:bg-red-500/10 text-red-400/70 hover:text-red-400 rounded transition-all text-xs flex items-center justify-center gap-1 whitespace-normal h-auto min-h-[40px] border border-red-500/20"
+                            title="Delete (type-to-confirm)"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 flex-shrink-0" />
+                            <span>Delete</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1012,6 +1037,23 @@ ${generatedLink}`}
       <IntakeLinkDialog
         invitation={intakeLinkFor}
         onClose={() => setIntakeLinkFor(null)}
+      />
+
+      <ConfirmDeleteDialog
+        open={deleteRowFor !== null}
+        onOpenChange={(v) => !v && setDeleteRowFor(null)}
+        title="Delete invitation"
+        description={
+          <>
+            Permanently removes <strong className="text-gold">{deleteRowFor?.business_name}</strong>
+            {" "}and any voice intake / uploads tied to it. Type the business
+            name below to confirm.
+          </>
+        }
+        confirmText={deleteRowFor?.business_name ?? ""}
+        confirmHint="Type the business name to confirm"
+        loading={deletingRow}
+        onConfirm={handleDeleteRow}
       />
     </div>
   )
