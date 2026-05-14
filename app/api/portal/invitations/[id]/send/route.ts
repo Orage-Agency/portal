@@ -53,12 +53,15 @@ export async function POST(
       process.env.PORTAL_BASE_URL ||
       process.env.NEXT_PUBLIC_SITE_URL ||
       new URL(req.url).origin
-    const signUrl = `${origin.replace(/\/+$/, "")}/onboard/${id}`
+    const base = origin.replace(/\/+$/, "")
+    const signUrl = `${base}/onboard/${id}`
+    const intakeUrl = `${base}/onboard/${id}/intake`
 
     const { subject, html } = invitationEmail({
       recipientName,
       businessName: inv.business_name,
       signUrl,
+      intakeUrl,
     })
 
     await sendEmail({ to: recipient, subject, html })

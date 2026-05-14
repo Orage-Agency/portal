@@ -66,18 +66,50 @@ function stripHtml(html: string): string {
 }
 
 const GOLD = "#B68039"
+const BRONZE = "#7A5A2E"
+const TEXT = "#2C1A00"
+const TEXT_MID = "#3D2500"
+const CARD_BORDER = "#D4C4AE"
+const FEATURE_FILL = "rgba(182,128,57,0.10)"
+const FEATURE_BORDER = "rgba(182,128,57,0.25)"
+const LOGO_URL = "https://assets.cdn.filesafe.space/651kIrlKk834C2FEl66i/media/69b0c2eebfc81fb1ab616b02.png"
+const BEBAS = `'Bebas Neue', Impact, 'Anton', 'Oswald', 'Arial Narrow', 'Helvetica Neue Condensed', sans-serif`
+const MONTSERRAT = `'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif`
 
 function shell(bodyHtml: string): string {
   return `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
-<body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#fff;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:24px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#111;border:1px solid ${GOLD};border-radius:12px;overflow:hidden;">
-        <tr><td style="padding:32px;color:#fff;">
+<html lang="en"><head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="supported-color-schemes" content="light dark"/>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    @media (prefers-color-scheme: dark) {
+      body, .wrapper, .card, .mid-bg { background-color: #FFFFFF !important; }
+    }
+    @media (max-width: 500px) {
+      .card { padding: 24px 18px !important; }
+      .feature { padding: 20px 18px !important; }
+      .h1 { font-size: 26px !important; letter-spacing: 4px !important; }
+      .h2 { font-size: 22px !important; letter-spacing: 2px !important; }
+      .cta { padding: 16px 24px !important; font-size: 14px !important; }
+    }
+  </style>
+</head>
+<body class="wrapper" style="margin:0;padding:0;background:#FFFFFF;font-family:${MONTSERRAT};color:${TEXT};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFFFFF;padding:24px 12px;">
+    <tr><td align="center" style="background:#FFFFFF;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#FFFFFF;border:1px solid ${CARD_BORDER};border-radius:12px;overflow:hidden;">
+        <tr><td align="center" style="padding:24px 0 16px;background:#FFFFFF;">
+          <img src="${LOGO_URL}" alt="Orage AI Agency" width="88" style="display:block;width:88px;height:auto;border:0;outline:none;"/>
+        </td></tr>
+        <tr><td class="card" style="padding:8px 36px 36px;background:#FFFFFF;color:${TEXT};">
           ${bodyHtml}
-          <hr style="border:none;border-top:1px solid #333;margin:32px 0 16px;"/>
-          <p style="font-size:12px;color:#888;margin:0;">Orage AI Agency · ${TEAM_EMAIL}</p>
+        </td></tr>
+        <tr><td style="padding:20px 36px 28px;background:#FFFFFF;border-top:2px solid ${GOLD};">
+          <p style="margin:14px 0 0;font-family:${MONTSERRAT};font-size:11px;font-weight:500;line-height:1.6;color:${BRONZE};text-align:center;">Orage AI Agency · Edmond, Oklahoma · ${TEAM_EMAIL}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -85,21 +117,62 @@ function shell(bodyHtml: string): string {
 </body></html>`
 }
 
+function eyebrow(label: string): string {
+  return `<p style="margin:0 0 8px;font-family:${BEBAS};font-size:11px;font-weight:400;letter-spacing:5px;text-transform:uppercase;color:${BRONZE};">${escapeHtml(label)}</p>`
+}
+
+function h1(text: string): string {
+  return `<h1 class="h1" style="margin:0 0 18px;font-family:${BEBAS};font-size:32px;font-weight:400;letter-spacing:6px;text-transform:uppercase;color:${GOLD};line-height:1.05;text-align:center;">${escapeHtml(text)}</h1>`
+}
+
+function divider(): string {
+  return `<div style="width:64px;height:2px;background:${GOLD};margin:0 auto 24px;"></div>`
+}
+
+function intro(text: string): string {
+  return `<p style="margin:0 0 14px;font-family:${MONTSERRAT};font-size:15px;font-weight:600;line-height:1.7;color:${TEXT};text-align:center;">${text}</p>`
+}
+
+function primaryCta(href: string, label: string, trust?: string): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:8px 0 4px;">
+    <a class="cta" href="${href}" style="display:inline-block;background:${GOLD};color:#FFFFFF;text-decoration:none;font-family:${BEBAS};font-size:16px;font-weight:400;letter-spacing:2px;text-transform:uppercase;padding:18px 36px;border-radius:4px;">${escapeHtml(label)}</a>
+  </td></tr>${trust ? `<tr><td align="center" style="padding:10px 0 0;"><p style="margin:0;font-family:${MONTSERRAT};font-size:11px;font-weight:600;color:${BRONZE};letter-spacing:0.4px;">${escapeHtml(trust)}</p></td></tr>` : ""}</table>`
+}
+
+function featureBox(inner: string, opts?: { emphasis?: boolean }): string {
+  const border = opts?.emphasis ? `2px solid ${GOLD}` : `1px solid ${FEATURE_BORDER}`
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td class="feature" style="background:${FEATURE_FILL};border:${border};border-radius:12px;padding:24px 22px;">${inner}</td></tr></table>`
+}
+
+function secondaryCta(href: string, label: string): string {
+  return `<a href="${href}" style="display:inline-block;background:transparent;color:${GOLD};text-decoration:none;font-family:${BEBAS};font-size:14px;font-weight:400;letter-spacing:2px;text-transform:uppercase;padding:13px 26px;border:1px solid ${GOLD};border-radius:4px;">${escapeHtml(label)} →</a>`
+}
+
 export function invitationEmail(args: {
   recipientName: string
   businessName: string
   signUrl: string
+  intakeUrl: string
 }): { subject: string; html: string } {
-  const subject = `Your Orage AI Agency agreement is ready to sign`
+  const subject = `Your Orage AI Agency agreement — sign + voice setup`
+  const firstName = (args.recipientName || args.businessName || "").split(" ")[0]
   const html = shell(`
-    <h1 style="color:${GOLD};font-size:24px;margin:0 0 16px;">Welcome, ${escapeHtml(args.recipientName || args.businessName)}.</h1>
-    <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Your Master Service Agreement with Orage AI Agency is ready. Click the button below to review and sign — it takes about a minute.</p>
-    <p style="margin:24px 0;">
-      <a href="${args.signUrl}" style="display:inline-block;background:${GOLD};color:#0a0a0a;font-weight:700;text-decoration:none;padding:14px 28px;border-radius:8px;font-size:16px;">Review &amp; Sign</a>
-    </p>
-    <p style="font-size:14px;color:#bbb;line-height:1.6;margin:0 0 8px;">Or paste this link into your browser:</p>
-    <p style="font-size:13px;color:${GOLD};word-break:break-all;margin:0 0 16px;">${args.signUrl}</p>
-    <p style="font-size:14px;color:#bbb;line-height:1.6;margin:16px 0 0;">After you sign, you'll receive your client portal login and a short onboarding intake to get your agents built.</p>
+    ${eyebrow("01 — Welcome")}
+    ${h1(firstName ? `Welcome, ${firstName}.` : "Welcome.")}
+    ${divider()}
+    ${intro(`Your Master Service Agreement with Orage AI Agency is ready. Two quick things below — sign the agreement, then send us your voice so we can build your agents.`)}
+
+    ${primaryCta(args.signUrl, "Review & Sign", "Takes about a minute · secure signing link")}
+
+    ${featureBox(`
+      ${eyebrow("02 — Build your agents · 3 minutes")}
+      <h2 class="h2" style="margin:0 0 10px;font-family:${BEBAS};font-size:24px;font-weight:400;letter-spacing:2px;text-transform:uppercase;color:${BRONZE};line-height:1.1;">Send us your voice.</h2>
+      <p style="margin:0 0 16px;font-family:${MONTSERRAT};font-size:14px;font-weight:500;line-height:1.7;color:${TEXT_MID};">Six short questions. You talk, we listen. Your answers train the phone agent and chat agent that go live for <strong style="color:${GOLD};font-weight:700;">${escapeHtml(args.businessName)}</strong> inside 48 hours.</p>
+      <p style="margin:0;">${secondaryCta(args.intakeUrl, "Start voice setup")}</p>
+      <p style="margin:14px 0 0;font-family:${MONTSERRAT};font-size:11px;font-weight:600;color:${BRONZE};letter-spacing:0.4px;">Best on your phone · saves automatically</p>
+    `)}
+
+    <p style="margin:18px 0 0;font-family:${MONTSERRAT};font-size:13px;font-weight:500;line-height:1.7;color:${TEXT_MID};text-align:center;">Questions? Reply to this email — it goes straight to our team.</p>
   `)
   return { subject, html }
 }
@@ -113,24 +186,27 @@ export function welcomeEmail(args: {
   intakeUrl: string
 }): { subject: string; html: string } {
   const subject = `Welcome to Orage AI Agency — your portal access`
+  const firstName = (args.recipientName || args.businessName || "").split(" ")[0]
   const html = shell(`
-    <h1 style="color:${GOLD};font-size:24px;margin:0 0 16px;">Signed and sealed, ${escapeHtml(args.recipientName || args.businessName)}.</h1>
-    <p style="font-size:16px;line-height:1.6;margin:0 0 16px;">Thank you for signing your agreement. Here is everything you need to get started.</p>
+    ${eyebrow("Signed & sealed")}
+    ${h1(firstName ? `Welcome, ${firstName}.` : "Welcome.")}
+    ${divider()}
+    ${intro(`Thank you for signing your agreement. Your portal login is below — and one short step left to bring your agents online.`)}
 
-    <div style="background:#0a0a0a;border:1px solid ${GOLD};border-radius:8px;padding:20px;margin:24px 0;">
-      <p style="margin:0 0 8px;color:${GOLD};font-size:12px;text-transform:uppercase;letter-spacing:1px;">Your portal login</p>
-      <p style="margin:0 0 6px;font-size:14px;"><strong>Login URL:</strong> <a href="${args.portalLoginUrl}" style="color:${GOLD};">${args.portalLoginUrl}</a></p>
-      <p style="margin:0 0 6px;font-size:14px;"><strong>Client ID:</strong> ${escapeHtml(args.clientId)}</p>
-      <p style="margin:0;font-size:14px;"><strong>Email:</strong> ${escapeHtml(args.clientEmail)}</p>
-    </div>
+    ${featureBox(`
+      ${eyebrow("Your portal login")}
+      <p style="margin:0 0 6px;font-family:${MONTSERRAT};font-size:14px;font-weight:600;color:${TEXT};"><strong style="color:${GOLD};font-weight:700;">URL:</strong> <a href="${args.portalLoginUrl}" style="color:${GOLD};text-decoration:none;">${args.portalLoginUrl}</a></p>
+      <p style="margin:0 0 6px;font-family:${MONTSERRAT};font-size:14px;font-weight:600;color:${TEXT};"><strong style="color:${GOLD};font-weight:700;">Client ID:</strong> ${escapeHtml(args.clientId)}</p>
+      <p style="margin:0;font-family:${MONTSERRAT};font-size:14px;font-weight:600;color:${TEXT};"><strong style="color:${GOLD};font-weight:700;">Email:</strong> ${escapeHtml(args.clientEmail)}</p>
+    `, { emphasis: true })}
 
-    <h2 style="color:#fff;font-size:18px;margin:24px 0 12px;">One more step — build your agents</h2>
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Three minutes of voice + a few quick taps. We turn your answers into a phone agent and chat agent tuned to your business — live in 48 hours.</p>
-    <p style="margin:24px 0;">
-      <a href="${args.intakeUrl}" style="display:inline-block;background:${GOLD};color:#0a0a0a;font-weight:700;text-decoration:none;padding:14px 28px;border-radius:8px;font-size:16px;">Continue to Agent Setup</a>
-    </p>
+    ${eyebrow("One more step · 3 minutes")}
+    <h2 class="h2" style="margin:6px 0 10px;font-family:${BEBAS};font-size:24px;font-weight:400;letter-spacing:2px;text-transform:uppercase;color:${GOLD};line-height:1.1;">Send us your voice.</h2>
+    <p style="margin:0 0 18px;font-family:${MONTSERRAT};font-size:14px;font-weight:500;line-height:1.7;color:${TEXT_MID};">Six short questions. You talk, we listen. Your answers train the phone agent and chat agent — live in 48 hours.</p>
 
-    <p style="font-size:14px;color:#bbb;line-height:1.6;margin:24px 0 0;">Questions? Reply to this email — it goes straight to our team.</p>
+    ${primaryCta(args.intakeUrl, "Start voice setup", "Best on your phone · saves automatically")}
+
+    <p style="margin:24px 0 0;font-family:${MONTSERRAT};font-size:13px;font-weight:500;line-height:1.7;color:${TEXT_MID};text-align:center;">Questions? Reply to this email — it goes straight to our team.</p>
   `)
   return { subject, html }
 }
@@ -144,13 +220,14 @@ export function signedNotificationEmail(args: {
 }): { subject: string; html: string } {
   const subject = `Signed: ${args.businessName} completed onboarding`
   const html = shell(`
-    <h1 style="color:${GOLD};font-size:22px;margin:0 0 16px;">New signed agreement</h1>
-    <p style="font-size:15px;line-height:1.6;margin:0 0 8px;"><strong>Business:</strong> ${escapeHtml(args.businessName)}</p>
-    <p style="font-size:15px;line-height:1.6;margin:0 0 8px;"><strong>Contact:</strong> ${escapeHtml(args.clientName)} &lt;${escapeHtml(args.clientEmail)}&gt;</p>
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;"><strong>Client ID:</strong> ${escapeHtml(args.clientId)}</p>
-    <p style="margin:24px 0;">
-      <a href="${args.reviewUrl}" style="display:inline-block;background:${GOLD};color:#0a0a0a;font-weight:700;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:15px;">Review &amp; Countersign</a>
-    </p>
+    ${eyebrow("New signed agreement")}
+    ${h1(args.businessName)}
+    ${divider()}
+    ${featureBox(`
+      <p style="margin:0 0 8px;font-family:${MONTSERRAT};font-size:14px;font-weight:600;color:${TEXT};"><strong style="color:${GOLD};font-weight:700;">Contact:</strong> ${escapeHtml(args.clientName)} &lt;${escapeHtml(args.clientEmail)}&gt;</p>
+      <p style="margin:0;font-family:${MONTSERRAT};font-size:14px;font-weight:600;color:${TEXT};"><strong style="color:${GOLD};font-weight:700;">Client ID:</strong> ${escapeHtml(args.clientId)}</p>
+    `)}
+    ${primaryCta(args.reviewUrl, "Review & Countersign", "Internal notice · agency action required")}
   `)
   return { subject, html }
 }
