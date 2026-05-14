@@ -4,6 +4,7 @@ import { sql } from "@/lib/sql"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
+export const maxDuration = 60
 
 /**
  * Upload an audio recording to Vercel Blob and return its public URL.
@@ -50,7 +51,32 @@ export async function POST(req: Request) {
       access: "public",
       contentType: (file as File).type || "audio/webm",
     })
-    return NextResponse.json({ url: blob.url, slot })
+
+    // Audio is now safely persisted. Transcription is best-effort — we await
+    // it inline so the client gets {url, transcript?} in one round trip, but
+    // any failure is swallowed because the recording itself is what matters.
+    let transcript: string | undefined
+    try {
+      const origin = new URL(req.url).origin
+      const trRes = await fetch(`${origin}/api/portal/intakes/transcribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invitation_id: invitationId,
+          slot,
+          audio_url: blob.url,
+        }),
+      })
+      const tr = (await trRes.json().catch(() => ({}))) as {
+        ok?: boolean
+        text?: string
+      }
+      if (tr.ok && tr.text) transcript = tr.text
+    } catch (e) {
+      console.warn(`[audio] transcription pass for slot=${slot} failed:`, (e as Error).message)
+    }
+
+    return NextResponse.json({ url: blob.url, slot, transcript })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }

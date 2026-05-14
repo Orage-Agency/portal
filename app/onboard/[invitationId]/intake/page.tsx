@@ -2,73 +2,160 @@
 
 import { use, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Mic, Square, Check, ArrowRight, ArrowLeft, RotateCcw } from "lucide-react"
+import {
+  Mic,
+  Square,
+  Check,
+  ArrowRight,
+  ArrowLeft,
+  RotateCcw,
+  Upload,
+  FileText,
+} from "lucide-react"
 import { getInvitationById, type Invitation } from "@/lib/storage"
 
 export const dynamic = "force-dynamic"
 
 const LOGO = "https://assets.cdn.filesafe.space/651kIrlKk834C2FEl66i/media/69b0c2eebfc81fb1ab616b02.png"
 
-interface Question {
-  slot: "intro" | "different" | "operations" | "faq" | "tone" | "goals"
-  field:
-    | "audio_intro_url"
-    | "audio_different_url"
-    | "audio_operations_url"
-    | "audio_faq_url"
-    | "audio_tone_url"
-    | "audio_goals_url"
+type Slot =
+  | "intro"
+  | "operations"
+  | "different"
+  | "customer"
+  | "faq"
+  | "booking"
+  | "tone"
+  | "goals"
+  | "notes"
+
+type AudioField =
+  | "audio_intro_url"
+  | "audio_operations_url"
+  | "audio_different_url"
+  | "audio_customer_url"
+  | "audio_faq_url"
+  | "audio_booking_url"
+  | "audio_tone_url"
+  | "audio_goals_url"
+  | "audio_notes_url"
+
+interface VoiceQuestion {
+  type: "voice"
+  slot: Slot
+  field: AudioField
   eyebrow: string
   prompt: string
   hint: string
 }
 
-const QUESTIONS: Question[] = [
+interface UploadStep {
+  type: "upload"
+  eyebrow: string
+  title: string
+  hint: string
+}
+
+type Step = VoiceQuestion | UploadStep
+
+const STEPS: Step[] = [
   {
+    type: "voice",
     slot: "intro",
     field: "audio_intro_url",
     eyebrow: "01 — Who you are",
-    prompt: "What does your business do, and who's your ideal customer?",
-    hint: "Talk like you'd talk to a friend. 60 seconds.",
+    prompt: "What does your business do, and who do you serve?",
+    hint: "One minute. Plain English. Like you'd tell a friend at dinner.",
   },
   {
-    slot: "different",
-    field: "audio_different_url",
-    eyebrow: "02 — Edge",
-    prompt: "What makes you different from your competitors?",
-    hint: "The reason people pick you. Say it out loud.",
-  },
-  {
+    type: "voice",
     slot: "operations",
     field: "audio_operations_url",
-    eyebrow: "03 — How you operate",
-    prompt: "Walk me through hours, where you work, what you do, and what it costs.",
-    hint: "STACY uses this to answer your phone like you would.",
+    eyebrow: "02 — Hours · location",
+    prompt: "When are you open, and where do you work?",
+    hint:
+      "Be specific: opening time, closing time, weekdays vs weekends, holidays, " +
+      "and the exact area you cover (e.g. 'Mon–Fri 8am–6pm, Sat 9am–2pm, " +
+      "closed Sun. OKC + 30 miles, mobile only').",
   },
   {
+    type: "voice",
+    slot: "different",
+    field: "audio_different_url",
+    eyebrow: "03 — Pricing",
+    prompt: "List your services and what each one costs.",
+    hint:
+      "Walk me down your menu. Service name → starting price → roughly how long " +
+      "it takes → what's included. STACY uses this to give callers real numbers, " +
+      "not 'we'll get back to you'.",
+  },
+  {
+    type: "voice",
+    slot: "booking",
+    field: "audio_booking_url",
+    eyebrow: "04 — Booking flow",
+    prompt: "How do you take a booking today, start to finish?",
+    hint:
+      "How they reach you, what info you need, where you put it on the calendar, " +
+      "deposits or no, who confirms, what they get sent. Walk me through it once.",
+  },
+  {
+    type: "voice",
+    slot: "customer",
+    field: "audio_customer_url",
+    eyebrow: "05 — Yes vs no",
+    prompt: "Who's your perfect customer — and who's a hard NO?",
+    hint:
+      "Both sides. The fit you want more of (budget, type, vibe), and who " +
+      "STACY should NOT book (out of area, wrong job, too cheap, etc).",
+  },
+  {
+    type: "voice",
     slot: "faq",
     field: "audio_faq_url",
-    eyebrow: "04 — Qualify in, qualify out",
-    prompt: "Top questions clients ask — and who's a NO for you?",
-    hint: "What you say a hundred times a week, and what disqualifies a lead.",
+    eyebrow: "06 — Top questions",
+    prompt: "Top 5 questions clients ask — and exactly how you answer each one.",
+    hint:
+      "Speak the question, then your answer, in your own words. The agent " +
+      "will repeat your answers back word for word.",
   },
   {
+    type: "voice",
     slot: "tone",
     field: "audio_tone_url",
-    eyebrow: "05 — Voice of the agent",
-    prompt: "How should the agent sound? Give a sentence in the voice you want.",
-    hint: "Speak it the way you'd want STACY to say it.",
+    eyebrow: "07 — Voice of the agent",
+    prompt: "Read me one sentence in the exact tone you want STACY to sound.",
+    hint: "Casual, formal, warm, no-nonsense — speak it the way you want her to speak.",
   },
   {
+    type: "voice",
     slot: "goals",
     field: "audio_goals_url",
-    eyebrow: "06 — Where you're going",
+    eyebrow: "08 — Where you're going",
     prompt: "Where do you want to be 12 months from now?",
-    hint: "Revenue, team, lifestyle. Out loud.",
+    hint: "Revenue, team size, lifestyle. Out loud.",
+  },
+  {
+    type: "upload",
+    eyebrow: "09 — Last step",
+    title: "Anything we should have?",
+    hint:
+      "Upload your price sheet, services menu, intake form, or anything else " +
+      "you'd hand a new customer. Then leave a final voice note for anything " +
+      "we missed.",
   },
 ]
 
-type Audios = Partial<Record<Question["field"], string>>
+interface UploadItem {
+  id: string
+  url: string
+  name?: string
+  type?: string
+  size?: number
+}
+
+type AudioMap = Partial<Record<AudioField, string>>
+type TranscriptMap = Partial<Record<Slot, string>>
 
 export default function IntakePage({
   params,
@@ -79,7 +166,9 @@ export default function IntakePage({
   const router = useRouter()
   const [invitation, setInvitation] = useState<Invitation | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
-  const [audios, setAudios] = useState<Audios>({})
+  const [audios, setAudios] = useState<AudioMap>({})
+  const [transcripts, setTranscripts] = useState<TranscriptMap>({})
+  const [uploads, setUploads] = useState<UploadItem[]>([])
   const [savingFinal, setSavingFinal] = useState(false)
   const [done, setDone] = useState(false)
 
@@ -88,12 +177,30 @@ export default function IntakePage({
     getInvitationById(invitationId).then((inv) => {
       if (!cancelled) setInvitation(inv)
     })
+    fetch(`/api/portal/intakes/uploads?invitation_id=${encodeURIComponent(invitationId)}`)
+      .then((r) => (r.ok ? r.json() : { uploads: [] }))
+      .then((j: { uploads?: Array<{ id: string; file_url: string; file_name?: string; content_type?: string; size_bytes?: number }> }) => {
+        if (cancelled || !j.uploads) return
+        setUploads(
+          j.uploads.map((u) => ({
+            id: u.id,
+            url: u.file_url,
+            name: u.file_name,
+            type: u.content_type,
+            size: u.size_bytes,
+          })),
+        )
+      })
+      .catch(() => {})
     return () => {
       cancelled = true
     }
   }, [invitationId])
 
-  async function persist(status: "in_progress" | "completed", overrides?: Audios) {
+  async function persist(
+    status: "in_progress" | "completed",
+    overrides?: AudioMap,
+  ) {
     const a = { ...audios, ...(overrides ?? {}) }
     await fetch("/api/portal/intakes", {
       method: "POST",
@@ -103,21 +210,19 @@ export default function IntakePage({
         ...a,
         status,
       }),
-    })
+    }).catch(() => {})
   }
 
-  function setAudio(field: Question["field"], url: string) {
-    const next = { ...audios, [field]: url }
-    setAudios(next)
+  function handleAudio(slot: Slot, field: AudioField, url: string, transcript?: string) {
+    const nextAudios = { ...audios, [field]: url }
+    setAudios(nextAudios)
+    if (transcript) setTranscripts((t) => ({ ...t, [slot]: transcript }))
     void persist("in_progress", { [field]: url })
   }
 
   function next() {
-    if (stepIndex < QUESTIONS.length - 1) {
-      setStepIndex((i) => i + 1)
-    } else {
-      finish()
-    }
+    if (stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1)
+    else finish()
   }
 
   function prev() {
@@ -134,10 +239,14 @@ export default function IntakePage({
     }
   }
 
-  const q = QUESTIONS[stepIndex]
-  const currentUrl = q ? audios[q.field] : undefined
-  const totalAnswered = QUESTIONS.filter((qq) => audios[qq.field]).length
-  const progress = done ? 100 : ((stepIndex + (currentUrl ? 1 : 0)) / QUESTIONS.length) * 100
+  const step = STEPS[stepIndex]
+  const totalAnswered =
+    STEPS.filter((s) => s.type === "voice").filter((s) =>
+      s.type === "voice" ? audios[s.field] : false,
+    ).length + (uploads.length > 0 || audios.audio_notes_url ? 1 : 0)
+  const progress = done
+    ? 100
+    : ((stepIndex + (isStepDone(step, audios, uploads) ? 1 : 0)) / STEPS.length) * 100
 
   return (
     <div
@@ -154,7 +263,6 @@ export default function IntakePage({
         .bebas { font-family: 'Bebas Neue', Impact, 'Anton', 'Oswald', 'Arial Narrow', sans-serif; font-weight: 400; }
       `}</style>
 
-      {/* Top bar — logo + slim progress */}
       <header className="px-5 pt-5 pb-3">
         <div className="max-w-md mx-auto w-full">
           <div className="flex items-center justify-center mb-4">
@@ -165,7 +273,7 @@ export default function IntakePage({
               className="bebas text-[11px] tracking-[0.3em] uppercase"
               style={{ color: "#B68039" }}
             >
-              {String(stepIndex + 1).padStart(2, "0")} / {String(QUESTIONS.length).padStart(2, "0")}
+              {String(stepIndex + 1).padStart(2, "0")} / {String(STEPS.length).padStart(2, "0")}
             </span>
             <div
               className="flex-1 h-[2px] rounded-full overflow-hidden"
@@ -189,19 +297,34 @@ export default function IntakePage({
       <main className="flex-1 flex items-center justify-center px-5 py-6">
         <div className="max-w-md mx-auto w-full">
           {done ? (
-            <DoneCard
-              invitation={invitation}
-              onClose={() => router.push("/")}
-            />
-          ) : (
+            <DoneCard invitation={invitation} onClose={() => router.push("/")} />
+          ) : step.type === "voice" ? (
             <QuestionCard
-              q={q}
-              audioUrl={currentUrl}
+              q={step}
+              audioUrl={audios[step.field]}
+              transcript={transcripts[step.slot]}
               invitationId={invitationId}
-              onAudio={(url) => setAudio(q.field, url)}
+              onAudio={(url, transcript) =>
+                handleAudio(step.slot, step.field, url, transcript)
+              }
               onNext={next}
               onPrev={stepIndex > 0 ? prev : undefined}
-              isLast={stepIndex === QUESTIONS.length - 1}
+              isLast={stepIndex === STEPS.length - 1}
+              saving={savingFinal}
+            />
+          ) : (
+            <UploadCard
+              step={step}
+              invitationId={invitationId}
+              uploads={uploads}
+              setUploads={setUploads}
+              notesAudioUrl={audios.audio_notes_url}
+              notesTranscript={transcripts.notes}
+              onNotesAudio={(url, transcript) =>
+                handleAudio("notes", "audio_notes_url", url, transcript)
+              }
+              onPrev={prev}
+              onFinish={finish}
               saving={savingFinal}
             />
           )}
@@ -220,11 +343,17 @@ export default function IntakePage({
   )
 }
 
-/* ─────────────────────────── Question card ─────────────────────────── */
+function isStepDone(step: Step, audios: AudioMap, uploads: UploadItem[]): boolean {
+  if (step.type === "voice") return Boolean(audios[step.field])
+  return uploads.length > 0 || Boolean(audios.audio_notes_url)
+}
+
+/* ─────────────────────────── Voice card ─────────────────────────── */
 
 function QuestionCard({
   q,
   audioUrl,
+  transcript,
   invitationId,
   onAudio,
   onNext,
@@ -232,17 +361,18 @@ function QuestionCard({
   isLast,
   saving,
 }: {
-  q: Question
+  q: VoiceQuestion
   audioUrl?: string
+  transcript?: string
   invitationId: string
-  onAudio: (url: string) => void
+  onAudio: (url: string, transcript?: string) => void
   onNext: () => void
   onPrev?: () => void
   isLast: boolean
   saving: boolean
 }) {
   return (
-    <div className="space-y-8 text-center">
+    <div className="space-y-7 text-center">
       <div className="space-y-2">
         <p
           className="bebas text-[11px] tracking-[0.4em] uppercase"
@@ -254,14 +384,14 @@ function QuestionCard({
           className="bebas tracking-[0.04em] leading-[1.05]"
           style={{
             color: "#E4AF7A",
-            fontSize: "clamp(28px, 7vw, 38px)",
+            fontSize: "clamp(26px, 6.5vw, 36px)",
           }}
         >
           {q.prompt}
         </h1>
         <p
-          className="text-[13px] leading-relaxed pt-1"
-          style={{ color: "rgba(255,214,156,0.55)", fontWeight: 500 }}
+          className="text-[13px] leading-relaxed pt-1 px-2"
+          style={{ color: "rgba(255,214,156,0.6)", fontWeight: 500 }}
         >
           {q.hint}
         </p>
@@ -274,7 +404,9 @@ function QuestionCard({
         onUploaded={onAudio}
       />
 
-      <div className="flex items-center justify-between gap-3 pt-2">
+      {transcript && <TranscriptPreview text={transcript} />}
+
+      <div className="flex items-center justify-between gap-3 pt-1">
         {onPrev ? (
           <button
             onClick={onPrev}
@@ -310,6 +442,254 @@ function QuestionCard({
           {!saving && <ArrowRight className="h-4 w-4" />}
         </button>
       </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────── Upload card ─────────────────────────── */
+
+function UploadCard({
+  step,
+  invitationId,
+  uploads,
+  setUploads,
+  notesAudioUrl,
+  notesTranscript,
+  onNotesAudio,
+  onPrev,
+  onFinish,
+  saving,
+}: {
+  step: UploadStep
+  invitationId: string
+  uploads: UploadItem[]
+  setUploads: (u: UploadItem[]) => void
+  notesAudioUrl?: string
+  notesTranscript?: string
+  onNotesAudio: (url: string, transcript?: string) => void
+  onPrev: () => void
+  onFinish: () => void
+  saving: boolean
+}) {
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return
+    setUploading(true)
+    try {
+      const newOnes: UploadItem[] = []
+      for (const file of Array.from(files)) {
+        const form = new FormData()
+        form.append("file", file)
+        form.append("invitation_id", invitationId)
+        const r = await fetch("/api/portal/intakes/uploads", {
+          method: "POST",
+          body: form,
+        })
+        if (!r.ok) {
+          console.error(`upload failed for ${file.name}`)
+          continue
+        }
+        const j = (await r.json()) as UploadItem
+        newOnes.push(j)
+      }
+      setUploads([...newOnes, ...uploads])
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  return (
+    <div className="space-y-7">
+      <div className="text-center space-y-2">
+        <p
+          className="bebas text-[11px] tracking-[0.4em] uppercase"
+          style={{ color: "#B68039" }}
+        >
+          {step.eyebrow}
+        </p>
+        <h1
+          className="bebas tracking-[0.04em] leading-[1.05]"
+          style={{
+            color: "#E4AF7A",
+            fontSize: "clamp(28px, 7vw, 38px)",
+          }}
+        >
+          {step.title}
+        </h1>
+        <p
+          className="text-[13px] leading-relaxed pt-1 px-2"
+          style={{ color: "rgba(255,214,156,0.6)", fontWeight: 500 }}
+        >
+          {step.hint}
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={(e) => handleFiles(e.target.files)}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full flex items-center justify-center gap-3 py-5 rounded-lg transition active:scale-[0.99]"
+          style={{
+            background: "rgba(182,128,57,0.08)",
+            border: "1px dashed rgba(228,175,122,0.5)",
+            color: "#E4AF7A",
+          }}
+        >
+          <Upload className="h-5 w-5" strokeWidth={1.75} />
+          <span className="bebas text-[14px] tracking-[0.25em] uppercase">
+            {uploading ? "Uploading…" : "Add files"}
+          </span>
+        </button>
+
+        {uploads.length > 0 && (
+          <ul className="space-y-2">
+            {uploads.map((u) => (
+              <li
+                key={u.id}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(182,128,57,0.2)",
+                }}
+              >
+                <FileText
+                  className="h-4 w-4 shrink-0"
+                  style={{ color: "#B68039" }}
+                  strokeWidth={1.75}
+                />
+                <a
+                  href={u.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[13px] flex-1 truncate underline-offset-2 hover:underline"
+                  style={{ color: "#FFE8C7", fontWeight: 600 }}
+                >
+                  {u.name || "File"}
+                </a>
+                {typeof u.size === "number" && (
+                  <span
+                    className="text-[11px] bebas tracking-[0.2em] uppercase shrink-0"
+                    style={{ color: "rgba(255,214,156,0.5)" }}
+                  >
+                    {formatSize(u.size)}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div
+        className="space-y-4 pt-2 border-t"
+        style={{ borderColor: "rgba(182,128,57,0.18)" }}
+      >
+        <div className="text-center pt-4 space-y-1">
+          <p
+            className="bebas text-[11px] tracking-[0.4em] uppercase"
+            style={{ color: "#B68039" }}
+          >
+            Anything we missed
+          </p>
+          <p
+            className="text-[13px] leading-relaxed px-2"
+            style={{ color: "rgba(255,214,156,0.6)", fontWeight: 500 }}
+          >
+            One last voice note. Anything important we didn't ask about.
+          </p>
+        </div>
+
+        <Recorder
+          invitationId={invitationId}
+          slot="notes"
+          currentUrl={notesAudioUrl}
+          onUploaded={onNotesAudio}
+          compact
+        />
+
+        {notesTranscript && <TranscriptPreview text={notesTranscript} />}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <button
+          onClick={onPrev}
+          className="bebas text-[12px] tracking-[0.25em] uppercase flex items-center gap-2 px-3 py-2 rounded transition"
+          style={{ color: "rgba(255,214,156,0.55)" }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </button>
+
+        <button
+          onClick={onFinish}
+          disabled={saving}
+          className="bebas text-[14px] tracking-[0.25em] uppercase flex items-center gap-2 px-6 py-3 rounded transition disabled:opacity-50"
+          style={{
+            background: "#B68039",
+            color: "#FFFFFF",
+            border: "1px solid #B68039",
+          }}
+        >
+          {saving ? "Saving…" : "Finish"}
+          {!saving && <Check className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function formatSize(n: number): string {
+  if (n < 1024) return `${n} b`
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} kb`
+  return `${(n / (1024 * 1024)).toFixed(1)} mb`
+}
+
+/* ─────────────────────────── Transcript preview ─────────────────────────── */
+
+function TranscriptPreview({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  const short = text.length > 220 ? text.slice(0, 220).trimEnd() + "…" : text
+  return (
+    <div
+      className="text-left mx-auto max-w-sm rounded-lg p-3.5"
+      style={{
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(182,128,57,0.2)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <p
+          className="bebas text-[10px] tracking-[0.3em] uppercase"
+          style={{ color: "#B68039" }}
+        >
+          Transcript
+        </p>
+        {text.length > 220 && (
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="bebas text-[10px] tracking-[0.25em] uppercase"
+            style={{ color: "rgba(255,214,156,0.55)" }}
+          >
+            {open ? "Less" : "More"}
+          </button>
+        )}
+      </div>
+      <p
+        className="text-[12.5px] leading-relaxed"
+        style={{ color: "rgba(255,232,199,0.85)", fontWeight: 500 }}
+      >
+        {open ? text : short}
+      </p>
     </div>
   )
 }
@@ -365,10 +745,7 @@ function DoneCard({
       <button
         onClick={onClose}
         className="bebas text-[14px] tracking-[0.25em] uppercase px-6 py-3 rounded transition"
-        style={{
-          background: "#B68039",
-          color: "#FFFFFF",
-        }}
+        style={{ background: "#B68039", color: "#FFFFFF" }}
       >
         Done
       </button>
@@ -383,11 +760,13 @@ function Recorder({
   slot,
   currentUrl,
   onUploaded,
+  compact,
 }: {
   invitationId: string
   slot: string
   currentUrl?: string
-  onUploaded: (url: string) => void
+  onUploaded: (url: string, transcript?: string) => void
+  compact?: boolean
 }) {
   const [recording, setRecording] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -396,7 +775,7 @@ function Recorder({
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<number | null>(null)
-  const MAX_SEC = 90
+  const MAX_SEC = 120
 
   useEffect(() => {
     setPreviewUrl(currentUrl)
@@ -462,9 +841,9 @@ function Recorder({
       form.append("slot", slot)
       const r = await fetch("/api/portal/intakes/audio", { method: "POST", body: form })
       if (!r.ok) throw new Error(`upload failed (${r.status})`)
-      const { url } = (await r.json()) as { url: string }
+      const { url, transcript } = (await r.json()) as { url: string; transcript?: string }
       setPreviewUrl(url)
-      onUploaded(url)
+      onUploaded(url, transcript)
     } catch (err) {
       console.error(err)
       alert("Upload failed. Please try again.")
@@ -475,14 +854,17 @@ function Recorder({
 
   const mmss = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")}`
   const remaining = MAX_SEC - elapsedSec
+  const size = compact ? 24 : 32
 
   return (
-    <div className="flex flex-col items-center gap-5">
+    <div className="flex flex-col items-center gap-4">
       {!recording && !uploading && !previewUrl && (
         <button
           onClick={start}
-          className="relative h-32 w-32 rounded-full flex items-center justify-center transition active:scale-95"
+          className="relative rounded-full flex items-center justify-center transition active:scale-95"
           style={{
+            height: size * 4,
+            width: size * 4,
             background:
               "radial-gradient(circle at 30% 30%, #E4AF7A 0%, #B68039 55%, #543C1C 100%)",
             boxShadow: "0 12px 40px rgba(182,128,57,0.45), 0 0 0 1px rgba(228,175,122,0.25) inset",
@@ -491,19 +873,23 @@ function Recorder({
         >
           <span
             className="absolute inset-0 rounded-full"
-            style={{
-              border: "1px solid rgba(228,175,122,0.4)",
-            }}
+            style={{ border: "1px solid rgba(228,175,122,0.4)" }}
           />
-          <Mic className="h-12 w-12 text-white" strokeWidth={1.75} />
+          <Mic
+            className="text-white"
+            style={{ height: size * 1.4, width: size * 1.4 }}
+            strokeWidth={1.75}
+          />
         </button>
       )}
 
       {recording && (
         <button
           onClick={stop}
-          className="relative h-32 w-32 rounded-full flex items-center justify-center transition active:scale-95"
+          className="relative rounded-full flex items-center justify-center transition active:scale-95"
           style={{
+            height: size * 4,
+            width: size * 4,
             background: "#B68039",
             boxShadow: "0 0 0 8px rgba(182,128,57,0.18), 0 0 0 16px rgba(182,128,57,0.08)",
           }}
@@ -513,14 +899,23 @@ function Recorder({
             className="absolute inset-0 rounded-full animate-ping"
             style={{ background: "rgba(182,128,57,0.25)" }}
           />
-          <Square className="h-10 w-10 fill-white text-white" strokeWidth={0} />
+          <Square
+            className="fill-white text-white"
+            style={{ height: size * 1.2, width: size * 1.2 }}
+            strokeWidth={0}
+          />
         </button>
       )}
 
       {uploading && (
         <div
-          className="h-32 w-32 rounded-full flex items-center justify-center"
-          style={{ background: "rgba(182,128,57,0.15)", border: "1px solid #B68039" }}
+          className="rounded-full flex items-center justify-center"
+          style={{
+            height: size * 4,
+            width: size * 4,
+            background: "rgba(182,128,57,0.15)",
+            border: "1px solid #B68039",
+          }}
         >
           <span
             className="bebas text-[12px] tracking-[0.3em] uppercase"
@@ -534,18 +929,23 @@ function Recorder({
       {!recording && !uploading && previewUrl && (
         <button
           onClick={start}
-          className="relative h-32 w-32 rounded-full flex items-center justify-center transition active:scale-95"
+          className="relative rounded-full flex items-center justify-center transition active:scale-95"
           style={{
+            height: size * 4,
+            width: size * 4,
             background: "rgba(182,128,57,0.12)",
             border: "1px solid rgba(228,175,122,0.5)",
           }}
           aria-label="Re-record"
         >
-          <RotateCcw className="h-9 w-9" style={{ color: "#E4AF7A" }} strokeWidth={1.75} />
+          <RotateCcw
+            style={{ height: size * 1.2, width: size * 1.2, color: "#E4AF7A" }}
+            strokeWidth={1.75}
+          />
         </button>
       )}
 
-      <div className="min-h-[44px] flex flex-col items-center gap-2">
+      <div className="min-h-[40px] flex flex-col items-center gap-2">
         {recording && (
           <p
             className="bebas text-[13px] tracking-[0.25em] uppercase"
@@ -560,7 +960,7 @@ function Recorder({
             className="bebas text-[12px] tracking-[0.3em] uppercase"
             style={{ color: "rgba(255,214,156,0.55)" }}
           >
-            Tap to record
+            Tap to record · up to 2 min
           </p>
         )}
         {!recording && previewUrl && (

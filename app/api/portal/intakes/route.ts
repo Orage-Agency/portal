@@ -25,6 +25,8 @@ interface IntakeBody {
   audio_operations_url?: string
   audio_faq_url?: string
   audio_tone_url?: string
+  audio_booking_url?: string
+  audio_notes_url?: string
   upsell_signals?: string
   status?: string
 }
@@ -81,6 +83,7 @@ export async function POST(req: Request) {
         what_makes_different, ideal_customer, goals_12mo,
         audio_intro_url, audio_different_url, audio_customer_url, audio_goals_url,
         audio_operations_url, audio_faq_url, audio_tone_url,
+        audio_booking_url, audio_notes_url,
         upsell_signals, status, created_at, updated_at
       ) VALUES (
         ${id}, ${body.invitation_id}, ${body.business_hours ?? null},
@@ -92,6 +95,7 @@ export async function POST(req: Request) {
         ${body.audio_intro_url ?? null}, ${body.audio_different_url ?? null},
         ${body.audio_customer_url ?? null}, ${body.audio_goals_url ?? null},
         ${body.audio_operations_url ?? null}, ${body.audio_faq_url ?? null}, ${body.audio_tone_url ?? null},
+        ${body.audio_booking_url ?? null}, ${body.audio_notes_url ?? null},
         ${body.upsell_signals ?? null}, ${body.status ?? "in_progress"},
         ${now}, ${now}
       )
@@ -113,6 +117,8 @@ export async function POST(req: Request) {
         audio_operations_url = EXCLUDED.audio_operations_url,
         audio_faq_url = EXCLUDED.audio_faq_url,
         audio_tone_url = EXCLUDED.audio_tone_url,
+        audio_booking_url = EXCLUDED.audio_booking_url,
+        audio_notes_url = EXCLUDED.audio_notes_url,
         upsell_signals = EXCLUDED.upsell_signals,
         status = EXCLUDED.status,
         updated_at = ${now}
