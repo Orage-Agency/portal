@@ -70,7 +70,18 @@ export async function POST(req: Request) {
       })
     }
     const audioBlob = await audioRes.blob()
-    const filename = audio_url.split("/").pop() || `${slot}.webm`
+    // Whisper inspects the filename extension to pick a decoder. Browsers send
+    // audio/webm from MediaRecorder so .webm is the safe default; raw URL
+    // suffixes like ".audio" make Whisper return 400.
+    const ct = audioBlob.type || ""
+    const ext = ct.includes("mp4") || ct.includes("m4a")
+      ? "m4a"
+      : ct.includes("mpeg") || ct.includes("mp3")
+      ? "mp3"
+      : ct.includes("wav")
+      ? "wav"
+      : "webm"
+    const filename = `${slot}.${ext}`
 
     const form = new FormData()
     form.append("file", audioBlob, filename)

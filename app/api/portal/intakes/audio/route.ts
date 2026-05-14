@@ -45,7 +45,14 @@ export async function POST(req: Request) {
         { status: 500 },
       )
     }
-    const ext = (file as File).type?.includes("webm") ? "webm" : (file as File).type?.includes("mp4") ? "m4a" : "audio"
+    const ct = (file as File).type ?? ""
+    const ext = ct.includes("mp4") || ct.includes("m4a")
+      ? "m4a"
+      : ct.includes("mpeg") || ct.includes("mp3")
+      ? "mp3"
+      : ct.includes("wav")
+      ? "wav"
+      : "webm"
     const path = `intake-audio/${invitationId}/${slot}-${Date.now()}.${ext}`
     const blob = await put(path, file as Blob, {
       access: "public",
