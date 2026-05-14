@@ -6,7 +6,15 @@ import { checkMasterAuth } from "@/lib/auth"
 import { generateClientId } from "@/lib/auth"
 import { type OfferType, OFFER_DEFAULTS, type Invitation } from "@/lib/types"
 import Link from "next/link"
-import { Share2, Download, Trash2, Mail, CheckCircle2, FileDown } from "lucide-react"
+import { Share2, Download, Trash2, Mail, CheckCircle2, FileDown, Link2, Copy, ExternalLink } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { getInvitations, saveInvitation, deleteInvitation, sendInvitationEmail } from "@/lib/storage"
 import { generatePDFFromText, generateAndDownloadPDF } from "@/lib/pdf"
 import { MSATemplate, WelcomeTemplate, InvoiceTemplate } from "@/lib/templates"
@@ -17,6 +25,7 @@ export const dynamic = "force-dynamic"
 export default function InvitationsPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
+  const [intakeLinkFor, setIntakeLinkFor] = useState<Invitation | null>(null)
   const [businessName, setBusinessName] = useState("")
   const [contactName, setContactName] = useState("")
   const [clientEmail, setClientEmail] = useState("")
@@ -400,21 +409,6 @@ team@orage.agency`
 ${link}`
     navigator.clipboard.writeText(text)
     alert("Share text copied")
-  }
-
-  const copyIntakeLink = (id: string) => {
-    const link = `${window.location.origin}/onboard/${id}/intake`
-    navigator.clipboard.writeText(link)
-    alert("Intake link copied")
-  }
-
-  const shareIntakeLink = (id: string) => {
-    const link = `${window.location.origin}/onboard/${id}/intake`
-    const text = `Quick setup questions for your Orage AI agent — about 5 minutes:
-
-${link}`
-    navigator.clipboard.writeText(text)
-    alert("Intake share text copied")
   }
 
   if (!mounted) return null
@@ -928,10 +922,10 @@ ${generatedLink}`}
                             Copy Signing Link
                           </button>
                           <button
-                            onClick={() => copyIntakeLink(inv.id)}
-                            className="flex-1 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded transition-all text-xs whitespace-normal h-auto min-h-[36px]"
+                            onClick={() => setIntakeLinkFor(inv)}
+                            className="flex-1 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded transition-all text-xs whitespace-normal h-auto min-h-[36px] flex items-center justify-center gap-1"
                           >
-                            Copy Intake Link
+                            <Link2 className="h-3 w-3" /> Get Intake Link
                           </button>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-2">
@@ -999,17 +993,11 @@ ${generatedLink}`}
                         </div>
                         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto flex-wrap">
                           <button
-                            onClick={() => copyIntakeLink(inv.id)}
-                            className="w-full sm:w-auto px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded transition-all text-sm whitespace-normal h-auto min-h-[40px]"
+                            onClick={() => setIntakeLinkFor(inv)}
+                            className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-[#B68039] to-[#8B6028] hover:from-[#9B6A2F] hover:to-[#7A5222] text-white font-bold rounded transition-all text-sm flex items-center justify-center gap-2 shadow-md transform hover:scale-105 whitespace-normal h-auto min-h-[40px]"
                           >
-                            Copy Intake Link
-                          </button>
-                          <button
-                            onClick={() => shareIntakeLink(inv.id)}
-                            className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-[#B68039] to-[#8B6028] hover:from-[#9B6A2F] hover:to-[#7A5222] text-white font-bold rounded transition-all text-sm flex items-center justify-center gap-2 shadow-md transform hover:scale-105 text-xs md:text-sm whitespace-normal h-auto min-h-[40px]"
-                          >
-                            <Share2 className="h-3 w-3 flex-shrink-0" />
-                            <span>SEND QUESTIONS</span>
+                            <Link2 className="h-4 w-4 flex-shrink-0" />
+                            <span>GET INTAKE LINK</span>
                           </button>
                         </div>
                       </div>
@@ -1020,6 +1008,117 @@ ${generatedLink}`}
           )}
         </div>
       </div>
+
+      <IntakeLinkDialog
+        invitation={intakeLinkFor}
+        onClose={() => setIntakeLinkFor(null)}
+      />
     </div>
+  )
+}
+
+function IntakeLinkDialog({
+  invitation,
+  onClose,
+}: {
+  invitation: Invitation | null
+  onClose: () => void
+}) {
+  const [origin, setOrigin] = useState("")
+  const [copied, setCopied] = useState<"link" | "message" | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin)
+  }, [])
+
+  const open = invitation !== null
+  const link = invitation ? `${origin}/onboard/${invitation.id}/intake` : ""
+  const greeting = invitation?.contact_name?.split(" ")[0] || "there"
+  const biz = invitation?.business_name ? ` (${invitation.business_name})` : ""
+  const message =
+    `Hey ${greeting} — quick voice setup for your Orage AI agent${biz}. ` +
+    `About 5 minutes, works best on your phone. You record 9 short answers, we build STACY around them.\n\n${link}`
+
+  function copy(kind: "link" | "message", text: string) {
+    if (!text) return
+    navigator.clipboard.writeText(text)
+    setCopied(kind)
+    setTimeout(() => setCopied(null), 1800)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="bg-orage-black border border-gold/30 text-white max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-gold tracking-wider text-xl">
+            INTAKE LINK
+          </DialogTitle>
+          <DialogDescription className="text-white/60 font-body">
+            Nothing has been sent. Copy the link or share message and send it
+            yourself however you like — text, email, WhatsApp.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-2">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-gold/70 font-mono mb-2">
+              The link
+            </p>
+            <div className="flex items-stretch gap-2">
+              <input
+                readOnly
+                value={link}
+                onFocus={(e) => e.currentTarget.select()}
+                className="flex-1 bg-white/5 border border-white/15 rounded px-3 py-2.5 text-sm text-white font-mono truncate focus:outline-none focus:border-gold/50"
+              />
+              <Button
+                onClick={() => copy("link", link)}
+                className="bg-gold/15 hover:bg-gold/25 text-gold border border-gold/40 px-3"
+              >
+                {copied === "link" ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </Button>
+              <Button
+                onClick={() => window.open(link, "_blank")}
+                className="bg-white/5 hover:bg-white/10 text-white border border-white/15 px-3"
+                aria-label="Preview"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-gold/70 font-mono mb-2">
+              Pre-written message
+            </p>
+            <textarea
+              readOnly
+              value={message}
+              onFocus={(e) => e.currentTarget.select()}
+              rows={5}
+              className="w-full bg-white/5 border border-white/15 rounded px-3 py-2.5 text-sm text-white/90 font-body leading-relaxed resize-none focus:outline-none focus:border-gold/50"
+            />
+            <Button
+              onClick={() => copy("message", message)}
+              className="mt-2 w-full bg-gold/15 hover:bg-gold/25 text-gold border border-gold/40"
+            >
+              {copied === "message" ? (
+                <>
+                  <CheckCircle2 className="mr-2 h-4 w-4" /> Message copied
+                </>
+              ) : (
+                <>
+                  <Copy className="mr-2 h-4 w-4" /> Copy message
+                </>
+              )}
+            </Button>
+          </div>
+
+          <p className="text-[11px] text-white/40 font-mono uppercase tracking-wider pt-1">
+            Same link works on every device · saves automatically
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

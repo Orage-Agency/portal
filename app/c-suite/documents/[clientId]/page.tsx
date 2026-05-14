@@ -3,8 +3,15 @@
 import { useEffect, useState, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Download, CheckCircle, Mail, Pencil, Save, X, Send, FileDown, Trash2 } from "lucide-react"
+import { ArrowLeft, Download, CheckCircle, Mail, Pencil, Save, X, Send, FileDown, Trash2, Link2, Copy, ExternalLink } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import MSATemplate from "@/components/c-suite/templates/MSATemplate"
 import {
   getClients,
@@ -61,6 +68,7 @@ export default function ClientDocumentsPage() {
   const [signLink, setSignLink] = useState<string | null>(null)
   const [mintingToken, setMintingToken] = useState(false)
   const [clearingSig, setClearingSig] = useState<"client" | "agency" | null>(null)
+  const [showIntakeLink, setShowIntakeLink] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
   const clientId = params.clientId as string
@@ -583,16 +591,11 @@ team@orage.agency`
               {mintingToken ? "Generating…" : "Send for Signature"}
             </Button>
             <Button
-              onClick={() => {
-                const link = `${window.location.origin}/onboard/${client.id}/intake`
-                const text = `Quick setup questions for your Orage AI agent — about 5 minutes:\n\n${link}`
-                navigator.clipboard.writeText(text)
-                toast({ title: "Intake link copied", description: "Paste it into iMessage, WhatsApp, or email." })
-              }}
+              onClick={() => setShowIntakeLink(true)}
               className="flex-1 md:flex-none bg-white/10 hover:bg-white/20 text-white border border-gold/30"
             >
-              <Send className="mr-2 h-4 w-4" />
-              Send Intake Questions
+              <Link2 className="mr-2 h-4 w-4" />
+              Get Intake Link
             </Button>
             <Button
               onClick={() => router.push("/c-suite/admin")}
@@ -1059,6 +1062,127 @@ Login Credentials:
           </div>
         </div>
       )}
+
+      <IntakeLinkDialog
+        open={showIntakeLink}
+        onOpenChange={setShowIntakeLink}
+        invitationId={client?.id ?? ""}
+        contactName={client?.name}
+        businessName={client?.business_name}
+      />
     </div>
+  )
+}
+
+function IntakeLinkDialog({
+  open,
+  onOpenChange,
+  invitationId,
+  contactName,
+  businessName,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  invitationId: string
+  contactName?: string | null
+  businessName?: string | null
+}) {
+  const [origin, setOrigin] = useState("")
+  const [copied, setCopied] = useState<"link" | "message" | null>(null)
+  const { toast } = useToast()
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin)
+  }, [])
+
+  const link = invitationId ? `${origin}/onboard/${invitationId}/intake` : ""
+  const greeting = contactName ? contactName.split(" ")[0] : "there"
+  const biz = businessName ? ` (${businessName})` : ""
+  const message =
+    `Hey ${greeting} — quick voice setup for your Orage AI agent${biz}. ` +
+    `About 5 minutes, works best on your phone. You record 9 short answers, we build STACY around them.\n\n${link}`
+
+  function copy(kind: "link" | "message", text: string) {
+    if (!text) return
+    navigator.clipboard.writeText(text)
+    setCopied(kind)
+    setTimeout(() => setCopied(null), 1800)
+    toast({ title: kind === "link" ? "Link copied" : "Message copied" })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-orage-black border border-gold/30 text-white max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-gold tracking-wider text-xl">
+            INTAKE LINK
+          </DialogTitle>
+          <DialogDescription className="text-white/60 font-body">
+            Nothing has been sent. Copy the link or share message and send it
+            yourself however you like — text, email, WhatsApp.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-2">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-gold/70 font-mono mb-2">
+              The link
+            </p>
+            <div className="flex items-stretch gap-2">
+              <input
+                readOnly
+                value={link}
+                onFocus={(e) => e.currentTarget.select()}
+                className="flex-1 bg-white/5 border border-white/15 rounded px-3 py-2.5 text-sm text-white font-mono truncate focus:outline-none focus:border-gold/50"
+              />
+              <Button
+                onClick={() => copy("link", link)}
+                className="bg-gold/15 hover:bg-gold/25 text-gold border border-gold/40 px-3"
+              >
+                {copied === "link" ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </Button>
+              <Button
+                onClick={() => window.open(link, "_blank")}
+                className="bg-white/5 hover:bg-white/10 text-white border border-white/15 px-3"
+                aria-label="Preview"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-gold/70 font-mono mb-2">
+              Pre-written message
+            </p>
+            <textarea
+              readOnly
+              value={message}
+              onFocus={(e) => e.currentTarget.select()}
+              rows={5}
+              className="w-full bg-white/5 border border-white/15 rounded px-3 py-2.5 text-sm text-white/90 font-body leading-relaxed resize-none focus:outline-none focus:border-gold/50"
+            />
+            <Button
+              onClick={() => copy("message", message)}
+              className="mt-2 w-full bg-gold/15 hover:bg-gold/25 text-gold border border-gold/40"
+            >
+              {copied === "message" ? (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" /> Message copied
+                </>
+              ) : (
+                <>
+                  <Copy className="mr-2 h-4 w-4" /> Copy message
+                </>
+              )}
+            </Button>
+          </div>
+
+          <p className="text-[11px] text-white/40 font-mono uppercase tracking-wider pt-1">
+            Same link works on every device · saves automatically
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
