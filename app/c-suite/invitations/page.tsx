@@ -402,6 +402,21 @@ ${link}`
     alert("Share text copied")
   }
 
+  const copyIntakeLink = (id: string) => {
+    const link = `${window.location.origin}/onboard/${id}/intake`
+    navigator.clipboard.writeText(link)
+    alert("Intake link copied")
+  }
+
+  const shareIntakeLink = (id: string) => {
+    const link = `${window.location.origin}/onboard/${id}/intake`
+    const text = `Quick setup questions for your Orage AI agent — about 5 minutes:
+
+${link}`
+    navigator.clipboard.writeText(text)
+    alert("Intake share text copied")
+  }
+
   if (!mounted) return null
 
   return (
@@ -910,8 +925,16 @@ ${generatedLink}`}
                             }}
                             className="flex-1 px-3 py-2 bg-gold/20 hover:bg-gold/30 text-gold rounded transition-all text-xs whitespace-normal h-auto min-h-[36px]"
                           >
-                            Copy Link
+                            Copy Signing Link
                           </button>
+                          <button
+                            onClick={() => copyIntakeLink(inv.id)}
+                            className="flex-1 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded transition-all text-xs whitespace-normal h-auto min-h-[36px]"
+                          >
+                            Copy Intake Link
+                          </button>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <button
                             onClick={() => sharePendingLink(inv.id)}
                             className="flex-1 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded transition-all flex items-center justify-center gap-1 text-xs whitespace-normal h-auto min-h-[36px]"
@@ -919,8 +942,6 @@ ${generatedLink}`}
                             <Share2 className="h-3 w-3 flex-shrink-0" />
                             <span>Copy Msg</span>
                           </button>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-2">
                           <button
                             onClick={() => downloadInvitationEml(inv)}
                             className="flex-1 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded transition-all flex items-center justify-center gap-1 text-xs whitespace-normal h-auto min-h-[36px]"
@@ -951,6 +972,50 @@ ${generatedLink}`}
                     </div>
                   </div>
                 ))}
+            </div>
+          )}
+
+          {/* Signed clients — send intake questions only */}
+          {invitations.filter((inv) => inv.status === "completed").length > 0 && (
+            <div className="mt-12">
+              <h2 className="font-heading text-2xl md:text-3xl text-gold tracking-wider mb-2">
+                Signed clients
+              </h2>
+              <p className="text-white/60 text-sm font-body mb-6">
+                Already signed the contract — send them the intake questions whenever you're ready.
+              </p>
+              <div className="space-y-4">
+                {invitations
+                  .filter((inv) => inv.status === "completed")
+                  .map((inv) => (
+                    <div key={inv.id} className="bg-white/5 border border-white/20 rounded-lg p-4 w-full overflow-hidden">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                        <div className="flex-1 min-w-0 w-full">
+                          <h4 className="font-heading text-lg md:text-xl text-white break-words">{inv.business_name}</h4>
+                          <p className="text-white/60 text-sm md:text-base break-words">
+                            {OFFER_DEFAULTS[inv.offer_type as OfferType]?.displayName || inv.offer_type} — Signed
+                          </p>
+                          <p className="text-white/40 text-xs md:text-sm mt-1 break-all">ID: {inv.id}</p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto flex-wrap">
+                          <button
+                            onClick={() => copyIntakeLink(inv.id)}
+                            className="w-full sm:w-auto px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded transition-all text-sm whitespace-normal h-auto min-h-[40px]"
+                          >
+                            Copy Intake Link
+                          </button>
+                          <button
+                            onClick={() => shareIntakeLink(inv.id)}
+                            className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-[#B68039] to-[#8B6028] hover:from-[#9B6A2F] hover:to-[#7A5222] text-white font-bold rounded transition-all text-sm flex items-center justify-center gap-2 shadow-md transform hover:scale-105 text-xs md:text-sm whitespace-normal h-auto min-h-[40px]"
+                          >
+                            <Share2 className="h-3 w-3 flex-shrink-0" />
+                            <span>SEND QUESTIONS</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
             </div>
           )}
         </div>
