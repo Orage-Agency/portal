@@ -122,35 +122,87 @@ async function renderHtmlToPdfBlob(htmlContent: string): Promise<Blob> {
       }
     }
 
-    const canvas = await html2canvas(root, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: "#FFFFFF",
-      logging: false,
-      imageTimeout: 15000,
-      // Snapshot the iframe's window so html2canvas reads its CSS, not the host's.
-      windowWidth: root.scrollWidth,
-      windowHeight: root.scrollHeight,
-    })
+    // Per-block snapshotting so page breaks land between sections, never
+    // through the middle of a paragraph or table row. We take the visible top
+    // <div> (the "paper" container) and walk its direct children — each is a
+    // logical chunk (header, parties table, section block, footer). For each
+    // chunk we snapshot to its own canvas, then pack chunks into pages.
+    const paper =
+      (root.firstElementChild as HTMLElement) ?? root // template wraps in a single div
+    const blocks: HTMLElement[] = Array.from(paper.children) as HTMLElement[]
 
-    const imgData = canvas.toDataURL("image/jpeg", 0.95)
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+    const pageWidthMm = 210
+    const pageHeightMm = 297
+    const marginMm = 14 // top + bottom + left + right white margin
+    const usableWidthMm = pageWidthMm - marginMm * 2
+    const usableHeightMm = pageHeightMm - marginMm * 2
 
-    const imgWidth = 210
-    const pageHeight = 297
-    const imgHeight = (canvas.height * imgWidth) / canvas.width
-    let heightLeft = imgHeight
-    let position = 0
+    let cursorMm = marginMm
+    let firstPage = true
 
-    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight)
-    heightLeft -= pageHeight
+    async function snapshot(el: HTMLElement) {
+      return html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#FFFFFF",
+        logging: false,
+        imageTimeout: 15000,
+        windowWidth: el.scrollWidth || paper.scrollWidth,
+        windowHeight: el.scrollHeight || paper.scrollHeight,
+      })
+    }
 
-    while (heightLeft >= 0) {
-      position = heightLeft - imgHeight
-      pdf.addPage()
-      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight
+    function startPage() {
+      if (!firstPage) pdf.addPage()
+      firstPage = false
+      cursorMm = marginMm
+    }
+
+    startPage()
+
+    for (const block of blocks) {
+      const bounds = block.getBoundingClientRect()
+      if (bounds.width === 0 || bounds.height === 0) continue
+      const canvas = await snapshot(block)
+      const heightMm = (canvas.height * usableWidthMm) / canvas.width
+
+      // If the block is taller than a single page, slice it across pages
+      // (still better than slicing inside a paragraph — large items are usually
+      // tables of pricing or signature blocks, which are reasonable to slice).
+      if (heightMm > usableHeightMm) {
+        const pxPerMm = canvas.width / usableWidthMm
+        const sliceHeightPx = Math.floor(usableHeightMm * pxPerMm)
+        let yPx = 0
+        while (yPx < canvas.height) {
+          const remainingPx = canvas.height - yPx
+          const thisSlicePx = Math.min(sliceHeightPx, remainingPx)
+          const sliceCanvas = document.createElement("canvas")
+          sliceCanvas.width = canvas.width
+          sliceCanvas.height = thisSlicePx
+          const ctx = sliceCanvas.getContext("2d")
+          if (!ctx) break
+          ctx.drawImage(canvas, 0, -yPx)
+          const sliceImg = sliceCanvas.toDataURL("image/jpeg", 0.95)
+          const sliceMm = (thisSlicePx * usableWidthMm) / canvas.width
+          if (cursorMm + sliceMm > marginMm + usableHeightMm + 0.5) startPage()
+          pdf.addImage(sliceImg, "JPEG", marginMm, cursorMm, usableWidthMm, sliceMm)
+          cursorMm += sliceMm
+          yPx += thisSlicePx
+          if (yPx < canvas.height) startPage()
+        }
+        continue
+      }
+
+      // Normal block: page-break before placing if it wouldn't fit on the
+      // current page. 0.5mm slack avoids spurious breaks from rounding.
+      if (cursorMm + heightMm > marginMm + usableHeightMm + 0.5) {
+        startPage()
+      }
+      const imgData = canvas.toDataURL("image/jpeg", 0.95)
+      pdf.addImage(imgData, "JPEG", marginMm, cursorMm, usableWidthMm, heightMm)
+      cursorMm += heightMm
     }
 
     return pdf.output("blob")

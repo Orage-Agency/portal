@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Download, CheckCircle, Mail, Pencil, Save, X, Send, FileDown, Trash2, Link2, Copy, ExternalLink } from "lucide-react"
+import { ArrowLeft, Download, CheckCircle, Mail, Pencil, Save, X, Send, FileDown, Trash2, Link2, Copy, ExternalLink, Mic } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import {
   Dialog,
@@ -272,21 +272,31 @@ If you have any questions, feel free to reach out to our team.`
   /**
    * Build the share text for a given (already-minted) sign URL. The URL is
    * a one-time token — each "Send for Signature" press creates a fresh one.
+   * The intake URL is keyed off the client.id so the voice answers land
+   * against this same client record automatically.
    */
   const buildSignShare = (url: string) => {
     if (!client) return null
-    const subject = `Please sign your Orage AI Agency agreement`
+    const intakeUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/onboard/${client.id}/intake`
+        : ""
+    const subject = `Please sign your Orage AI Agency agreement + voice setup`
     const body = `Hi ${client.name || client.business_name},
 
-Your agreement is ready to sign — click the link below. It's a one-time link, so it locks the moment you sign.
+Two quick things to get you live:
 
+1. Sign your agreement — about a minute (one-time link, locks the moment you sign):
 ${url}
 
-After you sign, we'll countersign and email you the final signed PDF.
+2. Send us your voice — six short questions on your phone, about 5 minutes. We turn your answers into your STACY phone agent and chat agent:
+${intakeUrl}
+
+You can do them in any order. Both links are unique to you.
 
 — Orage AI Agency
 team@orage.agency`
-    return { link: url, subject, body }
+    return { link: url, intakeUrl, subject, body }
   }
 
   /**
@@ -870,12 +880,12 @@ Login Credentials:
         </div>
       </div>
 
-      {/* Send-for-signature share modal */}
+      {/* Send-for-signature + intake share modal */}
       {showSignShare && client && signLink && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-orage-black border border-gold/30 rounded-lg p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-4">
-              <h3 className="font-heading text-2xl text-gold">SEND FOR SIGNATURE</h3>
+              <h3 className="font-heading text-2xl text-gold">CONTRACT + INTAKE LINKS</h3>
               <button
                 onClick={() => {
                   setShowSignShare(false)
@@ -887,29 +897,72 @@ Login Credentials:
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="text-white/70 text-sm mb-2">
-              Unique, one-time link for <span className="text-gold">{client.email || client.name}</span>.
-              It locks the moment they sign.
+            <p className="text-white/70 text-sm mb-5">
+              Two unique links for <span className="text-gold">{client.email || client.name}</span>.
+              Both tie to the same client record so the voice answers land here automatically.
+              Nothing has been sent — copy or open in email when ready.
             </p>
-            <div className="bg-black/40 border border-gold/30 rounded p-3 mb-4 break-all text-white/90 text-xs font-mono">
-              {signLink}
+
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Link2 className="h-4 w-4 text-gold" />
+                <p className="text-[10px] uppercase tracking-[0.25em] text-gold/80 font-mono">
+                  Step 1 — Sign the contract (one-time link)
+                </p>
+              </div>
+              <div className="flex items-stretch gap-2">
+                <input
+                  readOnly
+                  value={signLink}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="flex-1 bg-black/40 border border-gold/30 rounded px-3 py-2 text-white/90 text-xs font-mono truncate focus:outline-none focus:border-gold/60"
+                />
+                <Button
+                  onClick={copySignLink}
+                  className="bg-gold/15 hover:bg-gold/25 text-gold border border-gold/40 px-3"
+                  aria-label="Copy sign link"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
+
+            <div className="mb-5">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Mic className="h-4 w-4 text-gold" />
+                <p className="text-[10px] uppercase tracking-[0.25em] text-gold/80 font-mono">
+                  Step 2 — Voice intake (~5 min on phone)
+                </p>
+              </div>
+              <div className="flex items-stretch gap-2">
+                <input
+                  readOnly
+                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/onboard/${client.id}/intake`}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="flex-1 bg-black/40 border border-gold/30 rounded px-3 py-2 text-white/90 text-xs font-mono truncate focus:outline-none focus:border-gold/60"
+                />
+                <Button
+                  onClick={() => {
+                    const intakeUrl = `${window.location.origin}/onboard/${client.id}/intake`
+                    navigator.clipboard.writeText(intakeUrl)
+                    toast({ title: "Intake link copied", description: intakeUrl })
+                  }}
+                  className="bg-gold/15 hover:bg-gold/25 text-gold border border-gold/40 px-3"
+                  aria-label="Copy intake link"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-2 mb-3">
-              <Button
-                onClick={copySignLink}
-                variant="outline"
-                className="bg-white/5 border-white/10 text-white hover:bg-white/10"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Copy link
-              </Button>
               <Button
                 onClick={copySignMessage}
                 variant="outline"
                 className="bg-white/5 border-white/10 text-white hover:bg-white/10"
               >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Copy message
+                <Copy className="mr-2 h-4 w-4" />
+                Copy full message
               </Button>
               <Button
                 onClick={downloadSignEml}
@@ -921,15 +974,16 @@ Login Credentials:
               </Button>
               <Button
                 onClick={openSignInEmail}
-                className="gradient-button text-black font-semibold"
+                className="gradient-button text-black font-semibold col-span-2"
               >
                 <Mail className="mr-2 h-4 w-4" />
-                Open in Email
+                Open in Email (both links)
               </Button>
             </div>
             <p className="text-white/40 text-xs leading-relaxed mb-3">
-              <span className="text-gold">Open in Email</span> launches your default mail app with the message pre-filled.{" "}
-              <span className="text-gold">Download .eml</span> saves a draft you can drag into any mail client. No setup required.
+              <span className="text-gold">Copy full message</span> grabs both links plus a friendly note in one block.{" "}
+              <span className="text-gold">Open in Email</span> launches your default mail app with both links pre-filled.{" "}
+              <span className="text-gold">Download .eml</span> saves a draft you can drag into any mail client.
             </p>
             <button
               onClick={openSendForSignature}

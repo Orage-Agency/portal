@@ -54,6 +54,8 @@ export default function MSATemplate(data: OnboardingData): string {
     day: "numeric",
   })
   const offerDisplayName = OFFER_DEFAULTS[data.offer_type]?.displayName || data.offer_type
+  const partnerName = (data.business_name || "CLIENT").trim()
+  const partnerNameUpper = partnerName.toUpperCase()
 
   const servicesByOffer = (() => {
     switch (data.offer_type) {
@@ -147,7 +149,10 @@ export default function MSATemplate(data: OnboardingData): string {
 
   const signatureSectionNumber = data.special_notes ? "11" : "10"
 
-  return `
+  // Render the body, then swap every body-text reference to the legal alias
+  // CLIENT with the partner's actual name. The eyebrow label "Client" (mixed
+  // case, line ~164) is unaffected because it doesn't match.
+  const html = `
 <div style="background:${PAPER};color:${INK};font-family:${FONT_BODY};max-width:680px;margin:0 auto;padding:40px 48px;box-sizing:border-box;">
 
   <!-- 01 · HEADER -->
@@ -175,7 +180,7 @@ export default function MSATemplate(data: OnboardingData): string {
   </table>
 
   ${sectionTitle("01 — Agreement", "Scope & Authority")}
-  ${p(`This agreement contains the entire understanding between <strong style="color:${GOLD};">ORAGE AI AGENCY</strong> (the "AGENCY") and <strong style="color:${GOLD};">${escapeHtml(data.business_name)}</strong> (the "CLIENT"). It supersedes all prior and simultaneous agreements between the parties. The only way to add or change this agreement is to do so in writing, signed by all parties. If any part is found invalid or unenforceable, the remainder remains valid. Failure to enforce any provision shall not constitute a waiver of any other.`)}
+  ${p(`This agreement contains the entire understanding between <strong style="color:${GOLD};">ORAGE AI AGENCY</strong> (the "AGENCY") and <strong style="color:${GOLD};">${escapeHtml(partnerName)}</strong>. It supersedes all prior and simultaneous agreements between the parties. The only way to add or change this agreement is to do so in writing, signed by all parties. If any part is found invalid or unenforceable, the remainder remains valid. Failure to enforce any provision shall not constitute a waiver of any other.`)}
 
   ${sectionTitle("02 — AI Services", `${offerDisplayName} Package`)}
   ${p(servicesByOffer.intro)}
@@ -288,6 +293,7 @@ export default function MSATemplate(data: OnboardingData): string {
     <p style="margin:0;font-family:${FONT_BODY};font-size:11px;font-weight:500;color:${GOLD_TERT};letter-spacing:1px;text-transform:uppercase;">© ${new Date().getFullYear()} Orage AI Agency · Edmond, Oklahoma · orage.agency</p>
   </div>
 </div>`
+  return html.replace(/\bCLIENT\b/g, partnerNameUpper)
 }
 
 function escapeHtml(s: string): string {

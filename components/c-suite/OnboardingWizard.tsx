@@ -12,7 +12,7 @@ import Step5Customizations from "./Step5Customizations"
 import SignatureStep from "./SignatureStep"
 import DocumentViewer from "./DocumentViewer"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, ArrowRight, Home, Send, X, Mail, FileDown } from "lucide-react"
+import { ArrowLeft, ArrowRight, Home, Send, X, Mail, FileDown, Link2, Mic, Copy } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 const TOTAL_STEPS = 6
@@ -133,18 +133,24 @@ export default function OnboardingWizard() {
     }
   }
 
-  const buildShareMessage = (url: string) => {
+  const intakeShareLink = sendShareLink ? `${sendShareLink}/intake` : null
+
+  const buildShareMessage = (signUrl: string, intakeUrl: string) => {
     const greeting = formData.contact_name
       ? `Hi ${formData.contact_name},`
       : `Hi ${formData.business_name || "there"},`
-    const subject = `Your Orage AI Agency agreement is ready to sign`
+    const subject = `Your Orage AI Agency agreement + voice setup`
     const body = `${greeting}
 
-Your agreement is ready — click the link below to review and sign. It takes about a minute.
+Two quick things to get you live:
 
-${url}
+1. Sign your Master Service Agreement — about a minute:
+${signUrl}
 
-After you sign, you'll get your client portal login and a short onboarding intake to get your agents built.
+2. Send us your voice — six short questions on your phone, about 5 minutes. We turn your answers into your STACY phone agent and chat agent:
+${intakeUrl}
+
+You can do them in any order. Both links are unique to you.
 
 — Orage AI Agency
 team@orage.agency`
@@ -154,19 +160,25 @@ team@orage.agency`
   const copyShareLink = () => {
     if (!sendShareLink) return
     navigator.clipboard.writeText(sendShareLink)
-    alert("Link copied to clipboard")
+    alert("Sign link copied to clipboard")
+  }
+
+  const copyIntakeLink = () => {
+    if (!intakeShareLink) return
+    navigator.clipboard.writeText(intakeShareLink)
+    alert("Intake link copied to clipboard")
   }
 
   const copyShareMessage = () => {
-    if (!sendShareLink) return
-    const { body } = buildShareMessage(sendShareLink)
+    if (!sendShareLink || !intakeShareLink) return
+    const { body } = buildShareMessage(sendShareLink, intakeShareLink)
     navigator.clipboard.writeText(body)
-    alert("Message copied to clipboard — paste it into any email or text.")
+    alert("Message copied — both links included.")
   }
 
   const openShareInEmail = () => {
-    if (!sendShareLink) return
-    const { subject, body } = buildShareMessage(sendShareLink)
+    if (!sendShareLink || !intakeShareLink) return
+    const { subject, body } = buildShareMessage(sendShareLink, intakeShareLink)
     const params = new URLSearchParams()
     params.set("subject", subject)
     params.set("body", body)
@@ -174,8 +186,8 @@ team@orage.agency`
   }
 
   const downloadShareEml = () => {
-    if (!sendShareLink) return
-    const { subject, body } = buildShareMessage(sendShareLink)
+    if (!sendShareLink || !intakeShareLink) return
+    const { subject, body } = buildShareMessage(sendShareLink, intakeShareLink)
     const safe = (formData.business_name || "client").replace(/[^a-z0-9-_]+/gi, "_")
     const headers = [
       `From: team@orage.agency`,
@@ -185,6 +197,7 @@ team@orage.agency`
       `Content-Type: text/plain; charset=UTF-8`,
       `Content-Transfer-Encoding: 8bit`,
       `X-Orage-Sign-Link: ${sendShareLink}`,
+      `X-Orage-Intake-Link: ${intakeShareLink}`,
     ]
       .filter(Boolean)
       .join("\r\n")
@@ -298,12 +311,12 @@ team@orage.agency`
         </div>
       </div>
 
-      {/* Send-for-signature share modal */}
-      {showSendShare && sendShareLink && (
+      {/* Send-for-signature + intake share modal */}
+      {showSendShare && sendShareLink && intakeShareLink && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-orage-black border border-gold/30 rounded-lg p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-4">
-              <h3 className="font-heading text-2xl text-gold">SEND FOR SIGNATURE</h3>
+              <h3 className="font-heading text-2xl text-gold">CONTRACT + INTAKE LINKS</h3>
               <button
                 onClick={() => {
                   setShowSendShare(false)
@@ -315,26 +328,70 @@ team@orage.agency`
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="text-white/70 text-sm mb-2">
-              Unique sign link for <span className="text-gold">{formData.client_email || formData.business_name}</span>. Send it however you want.
+            <p className="text-white/70 text-sm mb-5">
+              Two unique links for <span className="text-gold">{formData.client_email || formData.business_name}</span>.
+              Both tie to the same record so the voice answers land against this contract automatically.
+              Nothing has been sent — copy or open in email when ready.
             </p>
-            <div className="bg-black/40 border border-gold/30 rounded p-3 mb-4 break-all text-white/90 text-xs font-mono">
-              {sendShareLink}
+
+            {/* Sign link */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Link2 className="h-4 w-4 text-gold" />
+                <p className="text-[10px] uppercase tracking-[0.25em] text-gold/80 font-mono">
+                  Step 1 — Sign the contract
+                </p>
+              </div>
+              <div className="flex items-stretch gap-2">
+                <input
+                  readOnly
+                  value={sendShareLink}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="flex-1 bg-black/40 border border-gold/30 rounded px-3 py-2 text-white/90 text-xs font-mono truncate focus:outline-none focus:border-gold/60"
+                />
+                <Button
+                  onClick={copyShareLink}
+                  className="bg-gold/15 hover:bg-gold/25 text-gold border border-gold/40 px-3"
+                  aria-label="Copy sign link"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
+
+            {/* Intake link */}
+            <div className="mb-5">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Mic className="h-4 w-4 text-gold" />
+                <p className="text-[10px] uppercase tracking-[0.25em] text-gold/80 font-mono">
+                  Step 2 — Voice intake (~5 min on phone)
+                </p>
+              </div>
+              <div className="flex items-stretch gap-2">
+                <input
+                  readOnly
+                  value={intakeShareLink}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="flex-1 bg-black/40 border border-gold/30 rounded px-3 py-2 text-white/90 text-xs font-mono truncate focus:outline-none focus:border-gold/60"
+                />
+                <Button
+                  onClick={copyIntakeLink}
+                  className="bg-gold/15 hover:bg-gold/25 text-gold border border-gold/40 px-3"
+                  aria-label="Copy intake link"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-2 mb-3">
-              <Button
-                onClick={copyShareLink}
-                variant="outline"
-                className="bg-white/5 border-white/10 text-white hover:bg-white/10"
-              >
-                Copy link
-              </Button>
               <Button
                 onClick={copyShareMessage}
                 variant="outline"
                 className="bg-white/5 border-white/10 text-white hover:bg-white/10"
               >
-                Copy message
+                <Copy className="mr-2 h-4 w-4" />
+                Copy full message
               </Button>
               <Button
                 onClick={downloadShareEml}
@@ -346,15 +403,16 @@ team@orage.agency`
               </Button>
               <Button
                 onClick={openShareInEmail}
-                className="gradient-button text-black font-semibold"
+                className="gradient-button text-black font-semibold col-span-2"
               >
                 <Mail className="mr-2 h-4 w-4" />
-                Open in Email
+                Open in Email (both links)
               </Button>
             </div>
             <p className="text-white/40 text-xs leading-relaxed">
-              <span className="text-gold">Open in Email</span> launches your default mail app with the message pre-filled.{" "}
-              <span className="text-gold">Download .eml</span> saves a draft you can drag into any mail client. No setup required.
+              <span className="text-gold">Copy full message</span> grabs both links plus a friendly note in one block.{" "}
+              <span className="text-gold">Open in Email</span> launches your default mail app with both links pre-filled.{" "}
+              <span className="text-gold">Download .eml</span> saves a draft you can drag into any mail client.
             </p>
           </div>
         </div>
