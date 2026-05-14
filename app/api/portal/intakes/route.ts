@@ -45,7 +45,16 @@ export async function GET(req: Request) {
   try {
     const rows = invitationId
       ? await sql()`SELECT * FROM client_intakes WHERE invitation_id = ${invitationId} ORDER BY created_at DESC`
-      : await sql()`SELECT * FROM client_intakes ORDER BY created_at DESC`
+      : await sql()`
+          SELECT i.*,
+                 COALESCE(inv.business_name, c.business_name) AS business_name,
+                 COALESCE(inv.contact_name, c.name)           AS contact_name,
+                 COALESCE(inv.client_email, c.email)          AS client_email
+          FROM client_intakes i
+          LEFT JOIN invitations inv ON inv.id = i.invitation_id
+          LEFT JOIN clients     c   ON c.id   = i.invitation_id
+          ORDER BY i.updated_at DESC NULLS LAST, i.created_at DESC
+        `
     return NextResponse.json({ intakes: rows ?? [] })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
