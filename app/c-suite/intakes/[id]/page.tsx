@@ -11,8 +11,18 @@ import {
   Copy,
   Check,
   ExternalLink,
+  AlertCircle,
+  Send,
 } from "lucide-react"
 import { checkMasterAuth, MASTER_PASSWORD } from "@/lib/auth"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 export const dynamic = "force-dynamic"
 
@@ -67,6 +77,7 @@ export default function IntakeDetailPage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedAll, setCopiedAll] = useState(false)
+  const [showMissingReminder, setShowMissingReminder] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -172,20 +183,38 @@ export default function IntakeDetailPage({
                   Updated {fmtDate(intake.updated_at)}
                 </p>
               </div>
-              <button
-                onClick={copyAllTranscripts}
-                className="self-start md:self-auto inline-flex items-center gap-2 px-4 py-2.5 bg-gold/10 hover:bg-gold/20 text-gold border border-gold/40 rounded-lg font-mono text-xs uppercase tracking-wider transition"
-              >
-                {copiedAll ? (
-                  <>
-                    <Check className="h-4 w-4" /> Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4" /> Copy all
-                  </>
-                )}
-              </button>
+              <div className="flex flex-col md:flex-row gap-2 self-start md:self-auto">
+                {(() => {
+                  const missing = QUESTIONS.filter(
+                    (q) => !intake[q.field],
+                  )
+                  if (missing.length === 0) return null
+                  return (
+                    <button
+                      onClick={() => setShowMissingReminder(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg font-mono text-xs uppercase tracking-wider transition"
+                      title={`${missing.length} of ${QUESTIONS.length} questions still empty`}
+                    >
+                      <AlertCircle className="h-4 w-4" />
+                      Send Missing-Info Reminder ({missing.length})
+                    </button>
+                  )
+                })()}
+                <button
+                  onClick={copyAllTranscripts}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-gold/10 hover:bg-gold/20 text-gold border border-gold/40 rounded-lg font-mono text-xs uppercase tracking-wider transition"
+                >
+                  {copiedAll ? (
+                    <>
+                      <Check className="h-4 w-4" /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" /> Copy all
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -294,7 +323,136 @@ export default function IntakeDetailPage({
           </>
         )}
       </div>
+
+      {intake && (
+        <MissingReminderDialog
+          open={showMissingReminder}
+          onOpenChange={setShowMissingReminder}
+          intake={intake}
+        />
+      )}
     </div>
+  )
+}
+
+function MissingReminderDialog({
+  open,
+  onOpenChange,
+  intake,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  intake: IntakeRow
+}) {
+  const [origin, setOrigin] = useState("")
+  const [copied, setCopied] = useState<"link" | "message" | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin)
+  }, [])
+
+  const missing = QUESTIONS.filter((q) => !intake[q.field])
+  const link = `${origin}/onboard/${intake.invitation_id}/intake`
+  const firstName = intake.contact_name?.split(" ")[0] || "there"
+  const bulletList = missing.map((q) => `  • ${q.eyebrow.replace(/^\d+\s*—\s*/, "")} — ${q.prompt}`).join("\n")
+  const message =
+    `Hey ${firstName} — quick follow-up on your Orage AI agent setup.\n\n` +
+    `We still need your voice on the question${missing.length !== 1 ? "s" : ""} below so we can build STACY around the full picture:\n\n${bulletList}\n\n` +
+    `Just tap the link and answer the ones marked unfinished — your earlier answers are already saved. Takes about a minute each.\n\n${link}\n\n— Orage AI Agency`
+
+  function copy(kind: "link" | "message", text: string) {
+    if (!text) return
+    navigator.clipboard.writeText(text)
+    setCopied(kind)
+    setTimeout(() => setCopied(null), 1800)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-orage-black border border-amber-500/40 text-white max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-amber-300 tracking-wider text-xl flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            MISSING ANSWERS REMINDER
+          </DialogTitle>
+          <DialogDescription className="text-white/70 font-body">
+            Nothing sent yet. Copy the link or message and forward it however you
+            like. The intake link picks up where they left off — already-saved
+            answers are preserved.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-2">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-amber-300/80 font-mono mb-2">
+              Still needed ({missing.length} of {QUESTIONS.length})
+            </p>
+            <ul className="space-y-1 bg-amber-500/5 border border-amber-500/20 rounded p-3">
+              {missing.map((q) => (
+                <li key={q.slot} className="text-[13px] text-white/80 font-body flex items-start gap-2">
+                  <span className="text-amber-300/70 font-mono text-[11px] pt-0.5">{q.eyebrow.split(" — ")[0]}</span>
+                  <span>{q.eyebrow.split(" — ")[1]}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-amber-300/80 font-mono mb-2">
+              Intake link (same as before)
+            </p>
+            <div className="flex items-stretch gap-2">
+              <input
+                readOnly
+                value={link}
+                onFocus={(e) => e.currentTarget.select()}
+                className="flex-1 bg-white/5 border border-white/15 rounded px-3 py-2.5 text-sm text-white font-mono truncate focus:outline-none focus:border-amber-400/50"
+              />
+              <Button
+                onClick={() => copy("link", link)}
+                className="bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 px-3"
+              >
+                {copied === "link" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </Button>
+              <Button
+                onClick={() => window.open(link, "_blank")}
+                className="bg-white/5 hover:bg-white/10 text-white border border-white/15 px-3"
+                aria-label="Preview"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-amber-300/80 font-mono mb-2">
+              Pre-written nudge (names what's missing)
+            </p>
+            <textarea
+              readOnly
+              value={message}
+              onFocus={(e) => e.currentTarget.select()}
+              rows={9}
+              className="w-full bg-white/5 border border-white/15 rounded px-3 py-2.5 text-sm text-white/90 font-body leading-relaxed resize-none focus:outline-none focus:border-amber-400/50"
+            />
+            <Button
+              onClick={() => copy("message", message)}
+              className="mt-2 w-full bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40"
+            >
+              {copied === "message" ? (
+                <>
+                  <Check className="mr-2 h-4 w-4" /> Message copied
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" /> Copy reminder message
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
