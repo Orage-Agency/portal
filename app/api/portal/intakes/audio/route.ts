@@ -59,9 +59,43 @@ export async function POST(req: Request) {
       contentType: (file as File).type || "audio/webm",
     })
 
-    // Audio is now safely persisted. Transcription is best-effort — we await
-    // it inline so the client gets {url, transcript?} in one round trip, but
-    // any failure is swallowed because the recording itself is what matters.
+    // Persist the audio URL into client_intakes immediately, so the row
+    // exists even if the React page never POSTs back (or POSTs late). The
+    // page's separate POST is then idempotent. Slot is from a fixed
+    // whitelist below.
+    const SLOT_AUDIO_COLUMN: Record<string, string> = {
+      intro: "audio_intro_url",
+      different: "audio_different_url",
+      customer: "audio_customer_url",
+      goals: "audio_goals_url",
+      operations: "audio_operations_url",
+      faq: "audio_faq_url",
+      tone: "audio_tone_url",
+      booking: "audio_booking_url",
+      notes: "audio_notes_url",
+    }
+    const audioCol = SLOT_AUDIO_COLUMN[slot]
+    if (audioCol) {
+      try {
+        const seedId = `INTAKE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+        const upsertSql = `
+          INSERT INTO public.client_intakes (id, invitation_id, ${audioCol}, status, created_at, updated_at)
+          VALUES ($1, $2, $3, 'in_progress', NOW(), NOW())
+          ON CONFLICT (invitation_id) DO UPDATE
+            SET ${audioCol} = EXCLUDED.${audioCol}, updated_at = NOW()
+        `
+        const client = sql() as unknown as {
+          query: (q: string, params: unknown[]) => Promise<unknown>
+        }
+        await client.query(upsertSql, [seedId, invitationId, blob.url])
+      } catch (e) {
+        console.warn(`[audio] could not persist ${audioCol}:`, (e as Error).message)
+      }
+    }
+
+    // Transcription is best-effort — we await it inline so the client gets
+    // {url, transcript?} in one round trip, but any failure is swallowed
+    // because the recording itself is what matters.
     let transcript: string | undefined
     try {
       const origin = new URL(req.url).origin

@@ -116,13 +116,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, reason: "empty_transcript" })
     }
 
-    // Update the column matching this slot. Identifier is from a fixed
-    // whitelist (SLOT_TO_COLUMN) so direct interpolation is safe.
-    const updateSql = `UPDATE public.client_intakes SET ${column} = $1, updated_at = NOW() WHERE invitation_id = $2`
+    // Upsert into client_intakes. invitation_id has a UNIQUE constraint so
+    // ON CONFLICT does the right thing whether or not a row exists yet (the
+    // intake page POSTs the row asynchronously; this route can race or run
+    // before the page persist completes). Column identifier comes from a
+    // fixed whitelist so interpolation is safe.
+    const seedId = `INTAKE-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+    const upsertSql = `
+      INSERT INTO public.client_intakes (id, invitation_id, ${column}, status, created_at, updated_at)
+      VALUES ($1, $2, $3, 'in_progress', NOW(), NOW())
+      ON CONFLICT (invitation_id) DO UPDATE
+        SET ${column} = EXCLUDED.${column}, updated_at = NOW()
+    `
     const client = sql() as unknown as {
       query: (q: string, params: unknown[]) => Promise<unknown>
     }
-    await client.query(updateSql, [transcript, invitation_id])
+    await client.query(upsertSql, [seedId, invitation_id, transcript])
 
     return NextResponse.json({ ok: true, slot, text: transcript })
   } catch (err) {
