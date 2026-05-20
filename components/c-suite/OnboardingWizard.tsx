@@ -134,15 +134,18 @@ export default function OnboardingWizard() {
   }
 
   const intakeShareLink = sendShareLink ? `${sendShareLink}/intake` : null
+  const connectShareLink = sendShareLink
+    ? sendShareLink.replace(/\/onboard\/([^/]+)$/, "/portal/connect/$1")
+    : null
 
-  const buildShareMessage = (signUrl: string, intakeUrl: string) => {
+  const buildShareMessage = (signUrl: string, intakeUrl: string, connectUrl: string) => {
     const greeting = formData.contact_name
       ? `Hi ${formData.contact_name},`
       : `Hi ${formData.business_name || "there"},`
-    const subject = `Your Orage AI Agency agreement + voice setup`
+    const subject = `Your Orage AI Agency agreement + voice setup + tool connect`
     const body = `${greeting}
 
-Two quick things to get you live:
+Three quick things to get you live:
 
 1. Sign your Master Service Agreement — about a minute:
 ${signUrl}
@@ -150,7 +153,10 @@ ${signUrl}
 2. Send us your voice — six short questions on your phone, about 5 minutes. We turn your answers into your STACY phone agent and chat agent:
 ${intakeUrl}
 
-You can do them in any order. Both links are unique to you.
+3. Connect your tools — one tap per service (Google, GoHighLevel, Stripe, Square, Calendly, WordPress). You sign in through their own login screen; we never see your password:
+${connectUrl}
+
+You can do them in any order. All three links are unique to you.
 
 — Orage AI Agency
 team@orage.agency`
@@ -169,16 +175,22 @@ team@orage.agency`
     alert("Intake link copied to clipboard")
   }
 
+  const copyConnectLink = () => {
+    if (!connectShareLink) return
+    navigator.clipboard.writeText(connectShareLink)
+    alert("Connect link copied to clipboard")
+  }
+
   const copyShareMessage = () => {
-    if (!sendShareLink || !intakeShareLink) return
-    const { body } = buildShareMessage(sendShareLink, intakeShareLink)
+    if (!sendShareLink || !intakeShareLink || !connectShareLink) return
+    const { body } = buildShareMessage(sendShareLink, intakeShareLink, connectShareLink)
     navigator.clipboard.writeText(body)
-    alert("Message copied — both links included.")
+    alert("Message copied — all three links included.")
   }
 
   const openShareInEmail = () => {
-    if (!sendShareLink || !intakeShareLink) return
-    const { subject, body } = buildShareMessage(sendShareLink, intakeShareLink)
+    if (!sendShareLink || !intakeShareLink || !connectShareLink) return
+    const { subject, body } = buildShareMessage(sendShareLink, intakeShareLink, connectShareLink)
     const params = new URLSearchParams()
     params.set("subject", subject)
     params.set("body", body)
@@ -186,8 +198,8 @@ team@orage.agency`
   }
 
   const downloadShareEml = () => {
-    if (!sendShareLink || !intakeShareLink) return
-    const { subject, body } = buildShareMessage(sendShareLink, intakeShareLink)
+    if (!sendShareLink || !intakeShareLink || !connectShareLink) return
+    const { subject, body } = buildShareMessage(sendShareLink, intakeShareLink, connectShareLink)
     const safe = (formData.business_name || "client").replace(/[^a-z0-9-_]+/gi, "_")
     const headers = [
       `From: team@orage.agency`,
@@ -198,6 +210,7 @@ team@orage.agency`
       `Content-Transfer-Encoding: 8bit`,
       `X-Orage-Sign-Link: ${sendShareLink}`,
       `X-Orage-Intake-Link: ${intakeShareLink}`,
+      `X-Orage-Connect-Link: ${connectShareLink}`,
     ]
       .filter(Boolean)
       .join("\r\n")
@@ -311,8 +324,8 @@ team@orage.agency`
         </div>
       </div>
 
-      {/* Send-for-signature + intake share modal */}
-      {showSendShare && sendShareLink && intakeShareLink && (
+      {/* Send-for-signature + intake + connect share modal */}
+      {showSendShare && sendShareLink && intakeShareLink && connectShareLink && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-orage-black border border-gold/30 rounded-lg p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-4">
@@ -360,7 +373,7 @@ team@orage.agency`
             </div>
 
             {/* Intake link */}
-            <div className="mb-5">
+            <div className="mb-4">
               <div className="flex items-center gap-2 mb-1.5">
                 <Mic className="h-4 w-4 text-gold" />
                 <p className="text-[10px] uppercase tracking-[0.25em] text-gold/80 font-mono">
@@ -378,6 +391,31 @@ team@orage.agency`
                   onClick={copyIntakeLink}
                   className="bg-gold/15 hover:bg-gold/25 text-gold border border-gold/40 px-3"
                   aria-label="Copy intake link"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Connect link */}
+            <div className="mb-5">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Link2 className="h-4 w-4 text-gold" />
+                <p className="text-[10px] uppercase tracking-[0.25em] text-gold/80 font-mono">
+                  Step 3 — Connect their tools (one tap per service)
+                </p>
+              </div>
+              <div className="flex items-stretch gap-2">
+                <input
+                  readOnly
+                  value={connectShareLink}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="flex-1 bg-black/40 border border-gold/30 rounded px-3 py-2 text-white/90 text-xs font-mono truncate focus:outline-none focus:border-gold/60"
+                />
+                <Button
+                  onClick={copyConnectLink}
+                  className="bg-gold/15 hover:bg-gold/25 text-gold border border-gold/40 px-3"
+                  aria-label="Copy connect link"
                 >
                   <Copy className="h-4 w-4" />
                 </Button>

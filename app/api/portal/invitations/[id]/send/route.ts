@@ -56,12 +56,14 @@ export async function POST(
     const base = origin.replace(/\/+$/, "")
     const signUrl = `${base}/onboard/${id}`
     const intakeUrl = `${base}/onboard/${id}/intake`
+    const connectUrl = `${base}/portal/connect/${id}`
 
     const { subject, html } = invitationEmail({
       recipientName,
       businessName: inv.business_name,
       signUrl,
       intakeUrl,
+      connectUrl,
     })
 
     await sendEmail({ to: recipient, subject, html })

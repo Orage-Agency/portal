@@ -98,6 +98,15 @@ export default function AdminDashboard() {
           </Link>
 
           <Link
+            href="/c-suite/connections"
+            className="bg-white/5 backdrop-blur-sm border border-gold/20 rounded-lg p-8 hover:border-gold/50 transition-all group"
+          >
+            <div className="text-gold text-4xl mb-4">🔌</div>
+            <h3 className="font-heading text-2xl text-white mb-2 group-hover:text-gold transition-colors">CONNECTIONS</h3>
+            <p className="font-body text-white/60">OAuth + credentials per client (Google, GHL, Stripe…)</p>
+          </Link>
+
+          <Link
             href="/c-suite/notifications"
             className="bg-white/5 backdrop-blur-sm border border-gold/20 rounded-lg p-8 hover:border-gold/50 transition-all group relative"
           >

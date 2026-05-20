@@ -153,14 +153,15 @@ export function invitationEmail(args: {
   businessName: string
   signUrl: string
   intakeUrl: string
+  connectUrl: string
 }): { subject: string; html: string } {
-  const subject = `Your Orage AI Agency agreement — sign + voice setup`
+  const subject = `Your Orage AI Agency agreement — sign, voice setup, connect tools`
   const firstName = (args.recipientName || args.businessName || "").split(" ")[0]
   const html = shell(`
     ${eyebrow("01 — Welcome")}
     ${h1(firstName ? `Welcome, ${firstName}.` : "Welcome.")}
     ${divider()}
-    ${intro(`Your Master Service Agreement with Orage AI Agency is ready. Two quick things below — sign the agreement, then send us your voice so we can build your agents.`)}
+    ${intro(`Your Master Service Agreement with Orage AI Agency is ready. Three quick steps below — sign, send us your voice, and connect the tools you use. Your STACY agent goes live within 48 hours.`)}
 
     ${primaryCta(args.signUrl, "Review & Sign", "Takes about a minute · secure signing link")}
 
@@ -170,6 +171,14 @@ export function invitationEmail(args: {
       <p style="margin:0 0 16px;font-family:${MONTSERRAT};font-size:14px;font-weight:500;line-height:1.7;color:${TEXT_MID};">Six short questions. You talk, we listen. Your answers train the phone agent and chat agent that go live for <strong style="color:${GOLD};font-weight:700;">${escapeHtml(args.businessName)}</strong> inside 48 hours.</p>
       <p style="margin:0;">${secondaryCta(args.intakeUrl, "Start voice setup")}</p>
       <p style="margin:14px 0 0;font-family:${MONTSERRAT};font-size:11px;font-weight:600;color:${BRONZE};letter-spacing:0.4px;">Best on your phone · saves automatically</p>
+    `)}
+
+    ${featureBox(`
+      ${eyebrow("03 — Connect your tools · one tap each")}
+      <h2 class="h2" style="margin:0 0 10px;font-family:${BEBAS};font-size:24px;font-weight:400;letter-spacing:2px;text-transform:uppercase;color:${BRONZE};line-height:1.1;">No more back-and-forth.</h2>
+      <p style="margin:0 0 16px;font-family:${MONTSERRAT};font-size:14px;font-weight:500;line-height:1.7;color:${TEXT_MID};">Tap Connect for each tool you use — Google, GoHighLevel, Stripe, Square, Calendly, WordPress. You sign in through their own login screen (we never see your password). Orage takes it from there.</p>
+      <p style="margin:0;">${secondaryCta(args.connectUrl, "Connect your tools")}</p>
+      <p style="margin:14px 0 0;font-family:${MONTSERRAT};font-size:11px;font-weight:600;color:${BRONZE};letter-spacing:0.4px;">Revoke any time · we never store your passwords</p>
     `)}
 
     <p style="margin:18px 0 0;font-family:${MONTSERRAT};font-size:13px;font-weight:500;line-height:1.7;color:${TEXT_MID};text-align:center;">Questions? Reply to this email — it goes straight to our team.</p>
